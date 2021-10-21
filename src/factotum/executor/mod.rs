@@ -44,7 +44,7 @@ pub fn get_task_execution_list(factfile: &Factfile,
             .collect();
         match task_list.add_group(task_group) {
             Ok(_) => (),
-            Err(msg) => panic!(format!("Couldn't add task to group: {}", msg)),
+            Err(msg) => panic!("Couldn't add task to group: {}", msg),
         }
     }
 
@@ -56,10 +56,10 @@ pub fn get_task_execution_list(factfile: &Factfile,
                     match task_list.set_child(&dep, &task.name) {
                         Ok(_) => (),
                         Err(msg) => {
-                            panic!(format!("Executor: couldn't add '{}' to child '{}': {}",
+                            panic!("Executor: couldn't add '{}' to child '{}': {}",
                                            dep,
                                            task.name,
-                                           msg))
+                                           msg)
                         }
                     }
                 }

@@ -13,7 +13,7 @@
 //
 
 use factotum::parser::*;
-use rustc_serialize::json::{self, Json};
+use rustc_serialize::json::{self};
 
 #[inline]
 fn resource(name: &str) -> String {

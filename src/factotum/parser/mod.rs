@@ -22,8 +22,6 @@ use std::fs::File;
 use rustc_serialize::json::{self, Json};
 use super::factfile;
 
-use std::error::Error;
-
 pub struct TaskReturnCodeMapping {
     pub continue_job: Vec<i32>,
     pub terminate_early: Vec<i32>,
@@ -39,10 +37,10 @@ pub fn parse(factfile: &str,
              overrides: OverrideResultMappings)
              -> Result<factfile::Factfile, String> {
     info!("reading {} into memory", factfile);
-    let mut fh = try!(File::open(&factfile)
-        .map_err(|e| format!("Couldn't open '{}' for reading: {}", factfile, e)));
+    let mut fh = File::open(&factfile)
+        .map_err(|e| format!("Couldn't open '{}' for reading: {}", factfile, e))?;
     let mut f = String::new();
-    try!(fh.read_to_string(&mut f).map_err(|e| format!("Couldn't read '{}': {}", factfile, e)));
+    fh.read_to_string(&mut f).map_err(|e| format!("Couldn't read '{}': {}", factfile, e))?;
     info!("file {} was read successfully!", factfile);
 
     parse_str(&f, factfile, env, overrides)
@@ -114,18 +112,18 @@ fn parse_valid_json(file: &str,
                     conf: Option<Json>,
                     overrides: OverrideResultMappings)
                     -> Result<factfile::Factfile, String> {
-    let schema: SelfDescribingJson = try!(json::decode(file).map_err(|e| e.to_string()));
-    let compact_json:String = try!(json::encode(&schema).map_err(|e| e.to_string()));
+    let schema: SelfDescribingJson = json::decode(file).map_err(|e| e.to_string())?;
+    let compact_json:String = json::encode(&schema).map_err(|e| e.to_string())?;
     let decoded_json = schema.data;
 
     let final_compact_json:String = if let Some(ref subs) = conf {
-        try!(templater::decorate_str(&compact_json, &subs))
+        templater::decorate_str(&compact_json, &subs)?
     } else {
         compact_json.clone()
     }.to_string();
 
     let final_dag_name = if let Some(ref subs) = conf {
-        try!(templater::decorate_str(&decoded_json.name, &subs))
+        templater::decorate_str(&decoded_json.name, &subs)?
     } else {
         decoded_json.name.clone()
     }.to_string();
@@ -134,7 +132,7 @@ fn parse_valid_json(file: &str,
 
     for file_task in decoded_json.tasks.iter() {
         let final_name = if let Some(ref subs) = conf {
-            try!(templater::decorate_str(&file_task.name, &subs))
+            templater::decorate_str(&file_task.name, &subs)?
         } else {
             file_task.name.clone()
         }.to_string();
@@ -166,10 +164,10 @@ fn parse_valid_json(file: &str,
                   file_task.command,
                   file_task.arguments.join(" "));
 
-            let decorated_command = try!(templater::decorate_str(&file_task.command, &subs));
+            let decorated_command = templater::decorate_str(&file_task.command, &subs)?;
 
             for arg in file_task.arguments.iter() {
-                decorated_args.push(try!(templater::decorate_str(arg, &subs)))
+                decorated_args.push(templater::decorate_str(arg, &subs)?)
             }
 
             info!("after:\n\tcommand: '{}'\n\targs: '{}'",
@@ -177,7 +175,7 @@ fn parse_valid_json(file: &str,
                   decorated_args.join(" "));
 
             for dep in file_task.dependsOn.iter() {
-                decorated_deps.push(try!(templater::decorate_str(dep, &subs)))
+                decorated_deps.push(templater::decorate_str(dep, &subs)?)
             }
 
             info!("after:\n\tcommand: '{}'\n\tdeps: '{}'",

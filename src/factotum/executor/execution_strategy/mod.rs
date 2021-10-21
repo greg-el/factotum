@@ -70,8 +70,8 @@ pub fn execute_os(name: &str, command: &mut Command) -> RunResult {
             let run_duration = run_start.elapsed();
             let return_code = r.status.code().unwrap_or(1); // 1 will be returned if the process was killed by a signal
 
-            let task_stdout: String = String::from_utf8_lossy(&r.stdout).trim_right().into();
-            let task_stderr: String = String::from_utf8_lossy(&r.stderr).trim_right().into();
+            let task_stdout: String = String::from_utf8_lossy(&r.stdout).trim_end().into();
+            let task_stderr: String = String::from_utf8_lossy(&r.stderr).trim_end().into();
 
             info!("task '{}' stdout:\n'{}'", name, task_stdout);
             info!("task '{}' stderr:\n'{}'", name, task_stderr);

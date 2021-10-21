@@ -50,12 +50,11 @@ use std::env;
 use hyper::Url;
 use std::sync::mpsc;
 use std::net;
-use rustc_serialize::json::{self, Json, ToJson};
+use rustc_serialize::json::{self, Json};
 use std::collections::BTreeMap;
 #[cfg(test)]
 use std::fs::File;
 use std::collections::HashMap;
-use std::error::Error;
 
 mod factotum;
 
@@ -173,7 +172,7 @@ fn get_task_result_line_str(task_result: &Task<&FactfileTask>) -> (String, Optio
             Some(ref o) => {
                 Some(format!("Task '{}' stdout:\n{}\n",
                              task_result.name.cyan(),
-                             o.trim_right().bold()))
+                             o.trim_end().bold()))
             } 
             None => None,
         };
@@ -182,7 +181,7 @@ fn get_task_result_line_str(task_result: &Task<&FactfileTask>) -> (String, Optio
             Some(ref e) => {
                 Some(format!("Task '{}' stderr:\n{}\n",
                              task_result.name.cyan(),
-                             e.trim_right().red()))
+                             e.trim_end().red()))
             }
             None => None,
         };
@@ -307,7 +306,7 @@ fn validate_start_task(job: &Factfile, start_task: &str) -> Result<(), &'static 
 }
 
 fn dot(factfile: &str, start_from: Option<String>) -> Result<String, String> {
-    let ff = try!(factotum::parser::parse(factfile, None, OverrideResultMappings::None));
+    let ff = factotum::parser::parse(factfile, None, OverrideResultMappings::None)?;
     if let Some(ref start) = start_from {
         match ff.can_job_run_from_task(&start) {
             Ok(is_good) => {
@@ -424,15 +423,15 @@ fn parse_file_and_execute_with_strategy<F>(factfile: &str,
             let result = if normal_completion {
                 let (stdout_summary, stderr_summary) = get_task_results_str(&tasks);
                 print!("{}", stdout_summary);
-                if !stderr_summary.trim_right().is_empty() {
-                    print_err!("{}", stderr_summary.trim_right());
+                if !stderr_summary.trim_end().is_empty() {
+                    print_err!("{}", stderr_summary.trim_end());
                 }
                 PROC_SUCCESS
             } else if has_early_finish && !has_errors {
                 let (stdout_summary, stderr_summary) = get_task_results_str(&tasks);
                 print!("{}", stdout_summary);
-                if !stderr_summary.trim_right().is_empty() {
-                    print_err!("{}", stderr_summary.trim_right());
+                if !stderr_summary.trim_end().is_empty() {
+                    print_err!("{}", stderr_summary.trim_end());
                 }
                 let incomplete_tasks = tasks.iter()
                     .filter(|r| !r.run_result.is_some())
@@ -456,8 +455,8 @@ fn parse_file_and_execute_with_strategy<F>(factfile: &str,
                 let (stdout_summary, stderr_summary) = get_task_results_str(&tasks);
                 print!("{}", stdout_summary);
 
-                if !stderr_summary.trim_right().is_empty() {
-                    print_err!("{}", stderr_summary.trim_right());
+                if !stderr_summary.trim_end().is_empty() {
+                    print_err!("{}", stderr_summary.trim_end());
                 }
 
                 let incomplete_tasks = tasks.iter()
@@ -548,15 +547,15 @@ fn is_valid_host(host: &str) -> Result<(), String> {
         return Ok(());
     }
 
-    let os_hostname = try!(gethostname_safe().map_err(|e| e.to_string()));
+    let os_hostname = gethostname_safe().map_err(|e| e)?;
 
     if host == os_hostname {
         return Ok(());
     }
 
-    let external_addrs = try!(get_external_addrs().map_err(|e| e.to_string()));
-    let host_addrs = try!(dns_lookup::lookup_host(&host)
-        .map_err(|_| "could not find any IPv4 addresses for the supplied hostname"));
+    let external_addrs = get_external_addrs().map_err(|e| e)?;
+    let host_addrs = dns_lookup::lookup_host(&host)
+        .map_err(|_| "could not find any IPv4 addresses for the supplied hostname")?;
 
     for host_addr in host_addrs {
         if let Ok(good_host_addr) = host_addr {
@@ -675,7 +674,7 @@ fn json_str_to_btreemap(j: &str) -> Result<BTreeMap<String, String>, String> {
     json::decode(j).map_err(|err| {
         format!("Supplied string '{}' is not valid JSON: {}",
                 j,
-                Error::description(&err))
+                err)
     })
 }
 
@@ -683,7 +682,7 @@ fn str_to_json(s: &str) -> Result<Json, String> {
     Json::from_str(s).map_err(|err| {
         format!("Supplied string '{}' is not valid JSON: {}",
                 s,
-                Error::description(&err))
+                err)
     })
 }
 
@@ -701,8 +700,7 @@ fn str_to_json_produces_json() {
 fn str_to_json_bad_json() {
     let invalid = "{\"hello\":\"world\""; // missing final }
     if let Err(msg) = str_to_json(invalid) {
-        assert_eq!("Supplied string '{\"hello\":\"world\"' is not valid JSON: failed \
-                    to parse json",
+        assert_eq!("Supplied string '{\"hello\":\"world\"' is not valid JSON: SyntaxError(\"EOF While parsing object\", 1, 17)",
                    msg)
     } else {
         panic!("invalid json parsed successfully")
@@ -715,7 +713,7 @@ fn get_log_config() -> Result<log4rs::config::Config, String> {
         Err(e) => {
             let cwd = env::current_dir().expect("Unable to get current working directory");
             let expanded_path = format!("{}{}{}", cwd.display(), std::path::MAIN_SEPARATOR, ".factotum/factotum.log");
-            return Err(format!("couldn't create logfile appender to '{}'. Reason: {}", expanded_path, e.description()));
+            return Err(format!("couldn't create logfile appender to '{}'. Reason: {}", expanded_path, e));
         }
     };
 
@@ -725,7 +723,7 @@ fn get_log_config() -> Result<log4rs::config::Config, String> {
     log4rs::config::Config::builder(root.build())
         .appender(log4rs::config::Appender::builder("file".to_string(),
                                                     Box::new(file_appender)).build())
-        .build().map_err(|e| format!("error setting logging. Reason: {}", e.description()))
+        .build().map_err(|e| format!("error setting logging. Reason: {}", e))
 }
 
 fn init_logger() -> Result<(), String> {
@@ -736,12 +734,12 @@ fn init_logger() -> Result<(), String> {
             _ => {
                 let cwd = env::current_dir().expect("Unable to get current working directory");
                 let expected_path =  format!("{}{}{}{}", cwd.display(), std::path::MAIN_SEPARATOR, ".factotum", std::path::MAIN_SEPARATOR);
-                return Err(format!("unable to create directory '{}' for logfile. Reason: {}", expected_path, e.description()))
+                return Err(format!("unable to create directory '{}' for logfile. Reason: {}", expected_path, e))
             }
         }
     };
-    let log_config = try!(get_log_config());
-    log4rs::init_config(log_config).map_err(|e| format!("couldn't initialize log configuration. Reason: {}", e.description()))
+    let log_config = get_log_config()?;
+    log4rs::init_config(log_config).map_err(|e| format!("couldn't initialize log configuration. Reason: {}", e))
 }
 
 fn main() {

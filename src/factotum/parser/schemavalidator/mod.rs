@@ -32,13 +32,13 @@ fn get_human_readable_parse_error(e: ParserError) -> String {
 
 pub fn validate_schema(json: &str, schema: &str) -> Result<(), String> {
     let mut scope = json_schema::Scope::new();
-    let json_schema = try!(Json::from_str(schema)
-        .map_err(|e| format!("Schema is invalid json: {:?}", e)));
-    let compiled_schema = try!(scope.compile_and_return(json_schema, false)
-        .map_err(|e| format!("Failed to compile json schema: {:?}", e)));
+    let json_schema = Json::from_str(schema)
+        .map_err(|e| format!("Schema is invalid json: {:?}", e))?;
+    let compiled_schema = scope.compile_and_return(json_schema, false)
+        .map_err(|e| format!("Failed to compile json schema: {:?}", e))?;
 
-    let json_tree = try!(Json::from_str(json)
-        .map_err(|e| format!("invalid JSON - {}", get_human_readable_parse_error(e))));
+    let json_tree = Json::from_str(json)
+        .map_err(|e| format!("invalid JSON - {}", get_human_readable_parse_error(e)))?;
     info!("'{}' is valid JSON!", json);
     let json_schema_validation = compiled_schema.validate(&json_tree);
 
