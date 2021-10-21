@@ -60,8 +60,12 @@ fn a_complicated_tree_works() {
     //        \                 \
     //         --------------- chicken
 
-    let expected =
-        vec![vec!["turnip", "apple"], vec!["egg", "orange"], vec!["potato"], vec!["chicken"]];
+    let expected = vec![
+        vec!["turnip", "apple"],
+        vec!["egg", "orange"],
+        vec!["potato"],
+        vec!["chicken"],
+    ];
 
     let actual = ff.get_tasks_in_order();
 
@@ -112,7 +116,11 @@ fn no_cycles_ok() {
     //           \          /
     //           say_goodbye
 
-    let expected = vec![vec!["hello"], vec!["say_hello", "hello_world"], vec!["say_goodbye"]];
+    let expected = vec![
+        vec!["hello"],
+        vec!["say_hello", "hello_world"],
+        vec!["say_goodbye"],
+    ];
 
     let actual = ff.get_tasks_in_order();
 
@@ -129,10 +137,9 @@ fn can_job_run_from_task_name_not_present_in_dag() {
 
     match ff.can_job_run_from_task("this task name does not exist") {
         Err(msg) => assert_eq!(msg, "the task specified could not be found"),
-        Ok(_) => unreachable!("the test has failed as the task does not exist"), 
+        Ok(_) => unreachable!("the test has failed as the task does not exist"),
     }
 }
-
 
 #[test]
 fn can_job_run_from_task_name() {
@@ -143,14 +150,16 @@ fn can_job_run_from_task_name() {
     ff.add_task_obj(&make_task("c", &vec!["a"]));
     ff.add_task_obj(&make_task("d", &vec!["b", "c"]));
 
-    match ff.can_job_run_from_task("c") { // we can't run from c, because d depends on b also
+    match ff.can_job_run_from_task("c") {
+        // we can't run from c, because d depends on b also
         Ok(b) => assert_eq!(false, b),
-        _ => unreachable!("the test failed, the task is present"), 
+        _ => unreachable!("the test failed, the task is present"),
     }
 
-    match ff.can_job_run_from_task("a") { // we can of course run from the start
-        Ok(b) => assert_eq!(true, b), 
-        _ => unreachable!("the test failed"), 
+    match ff.can_job_run_from_task("a") {
+        // we can of course run from the start
+        Ok(b) => assert_eq!(true, b),
+        _ => unreachable!("the test failed"),
     }
 }
 

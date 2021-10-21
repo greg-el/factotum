@@ -14,47 +14,47 @@
 
 #[macro_use]
 extern crate log;
-extern crate log4rs;
-extern crate docopt;
-extern crate daggy;
-extern crate rustc_serialize;
-extern crate valico;
-extern crate colored;
 extern crate chrono;
-extern crate rand;
+extern crate colored;
 extern crate crypto;
-extern crate uuid;
+extern crate daggy;
+extern crate dns_lookup;
+extern crate docopt;
 extern crate hyper;
 extern crate hyper_native_tls;
-extern crate libc;
 extern crate ifaces;
-extern crate dns_lookup;
+extern crate libc;
+extern crate log4rs;
+extern crate rand;
+extern crate rustc_serialize;
+extern crate uuid;
+extern crate valico;
 
+use colored::*;
 use docopt::Docopt;
-use std::fs;
-use factotum::executor::task_list::{Task, State};
+use factotum::executor::execution_strategy::*;
+use factotum::executor::task_list::{State, Task};
+use factotum::executor::ExecutionUpdate;
 use factotum::factfile::Factfile;
 use factotum::factfile::Task as FactfileTask;
 use factotum::parser::OverrideResultMappings;
 use factotum::parser::TaskReturnCodeMapping;
-use factotum::executor::execution_strategy::*;
-use factotum::webhook::Webhook;
-use factotum::executor::ExecutionUpdate;
 use factotum::webhook;
-use colored::*;
-use std::time::Duration;
-use std::process::Command;
-use std::io::Write;
-use std::fs::OpenOptions;
-use std::env;
+use factotum::webhook::Webhook;
 use hyper::Url;
-use std::sync::mpsc;
-use std::net;
 use rustc_serialize::json::{self, Json};
 use std::collections::BTreeMap;
+use std::collections::HashMap;
+use std::env;
+use std::fs;
 #[cfg(test)]
 use std::fs::File;
-use std::collections::HashMap;
+use std::fs::OpenOptions;
+use std::io::Write;
+use std::net;
+use std::process::Command;
+use std::sync::mpsc;
+use std::time::Duration;
 
 mod factotum;
 
@@ -154,35 +154,36 @@ fn get_duration_as_string(d: &Duration) -> String {
 }
 
 fn get_task_result_line_str(task_result: &Task<&FactfileTask>) -> (String, Option<String>) {
-
     let state = task_result.state.clone();
     let start_time = match task_result.run_started {
         Some(ref t) => Some(format!("{}", t)),
         _ => None,
     };
-    let (opening_line, stdout, stderr, summary_line) = if let Some(ref res) =
-        task_result.run_result {
+    let (opening_line, stdout, stderr, summary_line) = if let Some(ref res) = task_result.run_result
+    {
         // we know tasks with run details were attempted
 
-        let opener = format!("Task '{}' was started at {}\n",
-                             task_result.name.cyan(),
-                             start_time.unwrap());
+        let opener = format!(
+            "Task '{}' was started at {}\n",
+            task_result.name.cyan(),
+            start_time.unwrap()
+        );
 
         let output = match res.stdout {
-            Some(ref o) => {
-                Some(format!("Task '{}' stdout:\n{}\n",
-                             task_result.name.cyan(),
-                             o.trim_end().bold()))
-            } 
+            Some(ref o) => Some(format!(
+                "Task '{}' stdout:\n{}\n",
+                task_result.name.cyan(),
+                o.trim_end().bold()
+            )),
             None => None,
         };
 
         let errors = match res.stderr {
-            Some(ref e) => {
-                Some(format!("Task '{}' stderr:\n{}\n",
-                             task_result.name.cyan(),
-                             e.trim_end().red()))
-            }
+            Some(ref e) => Some(format!(
+                "Task '{}' stderr:\n{}\n",
+                task_result.name.cyan(),
+                e.trim_end().red()
+            )),
             None => None,
         };
 
@@ -190,32 +191,43 @@ fn get_task_result_line_str(task_result: &Task<&FactfileTask>) -> (String, Optio
             (&Some(ref task_exec_error_msg), _) => {
                 let mut failure_str = "Task '".red().to_string();
                 failure_str.push_str(&format!("{}", task_result.name.cyan()));
-                failure_str.push_str(&format!("': couldn't be started. Reason: {}", task_exec_error_msg).red().to_string());
+                failure_str.push_str(
+                    &format!("': couldn't be started. Reason: {}", task_exec_error_msg)
+                        .red()
+                        .to_string(),
+                );
                 failure_str
             }
             (_, State::Failed(fail_reason)) => {
                 let mut failure_str = "Task '".red().to_string();
                 failure_str.push_str(&format!("{}", task_result.name.cyan()));
-                failure_str.push_str(&format!("': failed after {}. Reason: {}",
-                                              get_duration_as_string(&res.duration),
-                                              fail_reason)
+                failure_str.push_str(
+                    &format!(
+                        "': failed after {}. Reason: {}",
+                        get_duration_as_string(&res.duration),
+                        fail_reason
+                    )
                     .red()
-                    .to_string());
+                    .to_string(),
+                );
                 failure_str
             }
             (_, _) => {
                 let mut success_str = "Task '".green().to_string();
                 success_str.push_str(&format!("{}", task_result.name.cyan()));
-                success_str.push_str(&format!("': succeeded after {}",
-                                              get_duration_as_string(&res.duration))
+                success_str.push_str(
+                    &format!(
+                        "': succeeded after {}",
+                        get_duration_as_string(&res.duration)
+                    )
                     .green()
-                    .to_string());
+                    .to_string(),
+                );
                 success_str
             }
         };
 
         (opener, output, errors, summary)
-
     } else {
         // tasks without run details may have been unable to start (some internal error)
         // or skipped because a prior task errored or NOOPed
@@ -226,9 +238,11 @@ fn get_task_result_line_str(task_result: &Task<&FactfileTask>) -> (String, Optio
             "skipped".to_string()
         };
 
-        let opener = format!("Task '{}': {}!\n",
-                             task_result.name.cyan(),
-                             reason_for_not_running);
+        let opener = format!(
+            "Task '{}': {}!\n",
+            task_result.name.cyan(),
+            reason_for_not_running
+        );
         (opener, None, None, String::from(""))
     };
 
@@ -265,10 +279,12 @@ fn get_task_results_str(task_results: &Vec<&Task<&FactfileTask>>) -> (String, St
         }
     }
 
-    let summary = format!("{}/{} tasks run in {}\n",
-                          executed,
-                          task_results.len(),
-                          get_duration_as_string(&total_run_time));
+    let summary = format!(
+        "{}/{} tasks run in {}\n",
+        executed,
+        task_results.len(),
+        get_duration_as_string(&total_run_time)
+    );
     stdout.push_str(&summary.green().to_string());
 
     (stdout, stderr)
@@ -291,7 +307,6 @@ fn validate_start_task(job: &Factfile, start_task: &str) -> Result<(), &'static 
     //
     // It's fine to start at B here though, causing B, D, and E to be run
     //
-
 
     match job.can_job_run_from_task(start_task) {
         Ok(is_good) => {
@@ -323,72 +338,88 @@ fn dot(factfile: &str, start_from: Option<String>) -> Result<String, String> {
 
 fn validate(factfile: &str, env: Option<Json>) -> Result<String, String> {
     match factotum::parser::parse(factfile, env, OverrideResultMappings::None) {
-        Ok(_) => Ok(format!("'{}' is a valid Factfile!", factfile).green().to_string()),
+        Ok(_) => Ok(format!("'{}' is a valid Factfile!", factfile)
+            .green()
+            .to_string()),
         Err(msg) => Err(msg.red().to_string()),
     }
 }
 
 fn parse_file_and_simulate(factfile: &str, env: Option<Json>, start_from: Option<String>) -> i32 {
-    parse_file_and_execute_with_strategy(factfile,
-                                         env,
-                                         start_from,
-                                         factotum::executor::execution_strategy::execute_simulation,
-                                         OverrideResultMappings::All(TaskReturnCodeMapping {
-                                             continue_job: vec![0],
-                                             terminate_early: vec![],
-                                         }),
-                                         None,
-                                         None,
-                                         None)
+    parse_file_and_execute_with_strategy(
+        factfile,
+        env,
+        start_from,
+        factotum::executor::execution_strategy::execute_simulation,
+        OverrideResultMappings::All(TaskReturnCodeMapping {
+            continue_job: vec![0],
+            terminate_early: vec![],
+        }),
+        None,
+        None,
+        None,
+    )
 }
 
-fn parse_file_and_execute(factfile: &str,
-                          env: Option<Json>,
-                          start_from: Option<String>,
-                          webhook_url: Option<String>,
-                          job_tags: Option<HashMap<String, String>>,
-                          max_stdouterr_size: Option<usize>)
-                          -> i32 {
-    parse_file_and_execute_with_strategy(factfile,
-                                         env,
-                                         start_from,
-                                         factotum::executor::execution_strategy::execute_os,
-                                         OverrideResultMappings::None,
-                                         webhook_url,
-                                         job_tags,
-                                         max_stdouterr_size)
+fn parse_file_and_execute(
+    factfile: &str,
+    env: Option<Json>,
+    start_from: Option<String>,
+    webhook_url: Option<String>,
+    job_tags: Option<HashMap<String, String>>,
+    max_stdouterr_size: Option<usize>,
+) -> i32 {
+    parse_file_and_execute_with_strategy(
+        factfile,
+        env,
+        start_from,
+        factotum::executor::execution_strategy::execute_os,
+        OverrideResultMappings::None,
+        webhook_url,
+        job_tags,
+        max_stdouterr_size,
+    )
 }
 
-fn parse_file_and_execute_with_strategy<F>(factfile: &str,
-                                           env: Option<Json>,
-                                           start_from: Option<String>,
-                                           strategy: F,
-                                           override_result_map: OverrideResultMappings,
-                                           webhook_url: Option<String>,
-                                           job_tags: Option<HashMap<String, String>>,
-                                           max_stdouterr_size: Option<usize>)
-                                           -> i32
-    where F: Fn(&str, &mut Command) -> RunResult + Send + Sync + 'static + Copy
+fn parse_file_and_execute_with_strategy<F>(
+    factfile: &str,
+    env: Option<Json>,
+    start_from: Option<String>,
+    strategy: F,
+    override_result_map: OverrideResultMappings,
+    webhook_url: Option<String>,
+    job_tags: Option<HashMap<String, String>>,
+    max_stdouterr_size: Option<usize>,
+) -> i32
+where
+    F: Fn(&str, &mut Command) -> RunResult + Send + Sync + 'static + Copy,
 {
-
     match factotum::parser::parse(factfile, env, override_result_map) {
         Ok(job) => {
-
             if let Some(ref start_task) = start_from {
                 if let Err(msg) = validate_start_task(&job, &start_task) {
-                    warn!("The job could not be started from '{}' because {}",
-                          start_task,
-                          msg);
-                    println!("The job cannot be started from '{}' because {}",
-                             start_task.cyan(),
-                             msg);
+                    warn!(
+                        "The job could not be started from '{}' because {}",
+                        start_task, msg
+                    );
+                    println!(
+                        "The job cannot be started from '{}' because {}",
+                        start_task.cyan(),
+                        msg
+                    );
                     return PROC_OTHER_ERROR;
                 }
             }
 
             let (maybe_updates_channel, maybe_join_handle) = if webhook_url.is_some() {
                 let url = webhook_url.unwrap();
-                let mut wh = Webhook::new(job.name.clone(), job.raw.clone(), url, job_tags, max_stdouterr_size);
+                let mut wh = Webhook::new(
+                    job.name.clone(),
+                    job.raw.clone(),
+                    url,
+                    job_tags,
+                    max_stdouterr_size,
+                );
                 let (tx, rx) = mpsc::channel::<ExecutionUpdate>();
                 let join_handle =
                     wh.connect_webhook(rx, Webhook::http_post, webhook::backoff_rand_1_minute);
@@ -397,10 +428,12 @@ fn parse_file_and_execute_with_strategy<F>(factfile: &str,
                 (None, None)
             };
 
-            let job_res = factotum::executor::execute_factfile(&job,
-                                                               start_from,
-                                                               strategy,
-                                                               maybe_updates_channel);
+            let job_res = factotum::executor::execute_factfile(
+                &job,
+                start_from,
+                strategy,
+                maybe_updates_channel,
+            );
 
             let mut has_errors = false;
             let mut has_early_finish = false;
@@ -433,12 +466,14 @@ fn parse_file_and_execute_with_strategy<F>(factfile: &str,
                 if !stderr_summary.trim_end().is_empty() {
                     print_err!("{}", stderr_summary.trim_end());
                 }
-                let incomplete_tasks = tasks.iter()
+                let incomplete_tasks = tasks
+                    .iter()
                     .filter(|r| !r.run_result.is_some())
                     .map(|r| format!("'{}'", r.name.cyan()))
                     .collect::<Vec<String>>()
                     .join(", ");
-                let stop_requesters = tasks.iter()
+                let stop_requesters = tasks
+                    .iter()
                     .filter(|r| match r.state {
                         State::SuccessNoop => true,
                         _ => false,
@@ -446,10 +481,11 @@ fn parse_file_and_execute_with_strategy<F>(factfile: &str,
                     .map(|r| format!("'{}'", r.name.cyan()))
                     .collect::<Vec<String>>()
                     .join(", ");
-                println!("Factotum job finished early as a task ({}) requested an early finish. \
+                println!(
+                    "Factotum job finished early as a task ({}) requested an early finish. \
                           The following tasks were not run: {}.",
-                         stop_requesters,
-                         incomplete_tasks);
+                    stop_requesters, incomplete_tasks
+                );
                 PROC_SUCCESS
             } else {
                 let (stdout_summary, stderr_summary) = get_task_results_str(&tasks);
@@ -459,13 +495,15 @@ fn parse_file_and_execute_with_strategy<F>(factfile: &str,
                     print_err!("{}", stderr_summary.trim_end());
                 }
 
-                let incomplete_tasks = tasks.iter()
+                let incomplete_tasks = tasks
+                    .iter()
                     .filter(|r| !r.run_result.is_some())
                     .map(|r| format!("'{}'", r.name.cyan()))
                     .collect::<Vec<String>>()
                     .join(", ");
 
-                let failed_tasks = tasks.iter()
+                let failed_tasks = tasks
+                    .iter()
                     .filter(|r| match r.state {
                         State::Failed(_) => true,
                         _ => false,
@@ -474,10 +512,11 @@ fn parse_file_and_execute_with_strategy<F>(factfile: &str,
                     .collect::<Vec<String>>()
                     .join(", ");
 
-                println!("Factotum job executed abnormally as a task ({}) failed - the following \
+                println!(
+                    "Factotum job executed abnormally as a task ({}) failed - the following \
                           tasks were not run: {}!",
-                         failed_tasks,
-                         incomplete_tasks);
+                    failed_tasks, incomplete_tasks
+                );
                 PROC_EXEC_ERROR
             };
 
@@ -493,11 +532,11 @@ fn parse_file_and_execute_with_strategy<F>(factfile: &str,
             }
 
             result
-        } 
+        }
         Err(msg) => {
             println!("{}", msg);
             return PROC_PARSE_ERROR;
-        }      
+        }
     }
 }
 
@@ -507,17 +546,19 @@ fn write_to_file(filename: &str, contents: &str, overwrite: bool) -> Result<(), 
             .write(true)
             .create(true)
             .truncate(true)
-            .open(filename) {
+            .open(filename)
+        {
             Ok(f) => f,
-            Err(io) => return Err(format!("couldn't create file '{}' ({})", filename, io)),        
+            Err(io) => return Err(format!("couldn't create file '{}' ({})", filename, io)),
         }
     } else {
         match OpenOptions::new()
             .write(true)
             .create_new(true)
-            .open(filename) {
+            .open(filename)
+        {
             Ok(f) => f,
-            Err(io) => return Err(format!("couldn't create file '{}' ({})", filename, io)),        
+            Err(io) => return Err(format!("couldn't create file '{}' ({})", filename, io)),
         }
     };
 
@@ -559,7 +600,10 @@ fn is_valid_host(host: &str) -> Result<(), String> {
 
     for host_addr in host_addrs {
         if let Ok(good_host_addr) = host_addr {
-            if external_addrs.iter().any(|external_addr| external_addr.ip() == good_host_addr) {
+            if external_addrs
+                .iter()
+                .any(|external_addr| external_addr.ip() == good_host_addr)
+            {
                 return Ok(());
             }
         }
@@ -595,10 +639,9 @@ fn gethostname_safe() -> Result<String, String> {
             unsafe { buf.set_len(_real_len) }
             Ok(String::from_utf8_lossy(buf.as_slice()).into_owned())
         }
-        _ => {
-            Err("could not get hostname from system; cannot compare against supplied hostname"
-                .into())
-        }
+        _ => Err(
+            "could not get hostname from system; cannot compare against supplied hostname".into(),
+        ),
     }
 }
 
@@ -616,9 +659,11 @@ fn get_external_addrs() -> Result<Vec<net::SocketAddr>, String> {
     }
 
     if external_addrs.len() == 0 {
-        Err("could not find any non-loopback IPv4 addresses in the network interfaces; do you \
+        Err(
+            "could not find any non-loopback IPv4 addresses in the network interfaces; do you \
              have a working network interface card?"
-            .into())
+                .into(),
+        )
     } else {
         Ok(external_addrs)
     }
@@ -671,19 +716,11 @@ fn test_tag_map() {
 }
 
 fn json_str_to_btreemap(j: &str) -> Result<BTreeMap<String, String>, String> {
-    json::decode(j).map_err(|err| {
-        format!("Supplied string '{}' is not valid JSON: {}",
-                j,
-                err)
-    })
+    json::decode(j).map_err(|err| format!("Supplied string '{}' is not valid JSON: {}", j, err))
 }
 
 fn str_to_json(s: &str) -> Result<Json, String> {
-    Json::from_str(s).map_err(|err| {
-        format!("Supplied string '{}' is not valid JSON: {}",
-                s,
-                err)
-    })
+    Json::from_str(s).map_err(|err| format!("Supplied string '{}' is not valid JSON: {}", s, err))
 }
 
 #[test]
@@ -707,23 +744,34 @@ fn str_to_json_bad_json() {
     }
 }
 
-fn get_log_config() -> Result<log4rs::config::Config, String> {    
-    let file_appender = match log4rs::appender::FileAppender::builder(".factotum/factotum.log").build() {
-        Ok(fa) => fa,
-        Err(e) => {
-            let cwd = env::current_dir().expect("Unable to get current working directory");
-            let expanded_path = format!("{}{}{}", cwd.display(), std::path::MAIN_SEPARATOR, ".factotum/factotum.log");
-            return Err(format!("couldn't create logfile appender to '{}'. Reason: {}", expanded_path, e));
-        }
-    };
+fn get_log_config() -> Result<log4rs::config::Config, String> {
+    let file_appender =
+        match log4rs::appender::FileAppender::builder(".factotum/factotum.log").build() {
+            Ok(fa) => fa,
+            Err(e) => {
+                let cwd = env::current_dir().expect("Unable to get current working directory");
+                let expanded_path = format!(
+                    "{}{}{}",
+                    cwd.display(),
+                    std::path::MAIN_SEPARATOR,
+                    ".factotum/factotum.log"
+                );
+                return Err(format!(
+                    "couldn't create logfile appender to '{}'. Reason: {}",
+                    expanded_path, e
+                ));
+            }
+        };
 
-    let root = log4rs::config::Root::builder(log::LogLevelFilter::Info)
-        .appender("file".to_string());
+    let root =
+        log4rs::config::Root::builder(log::LogLevelFilter::Info).appender("file".to_string());
 
     log4rs::config::Config::builder(root.build())
-        .appender(log4rs::config::Appender::builder("file".to_string(),
-                                                    Box::new(file_appender)).build())
-        .build().map_err(|e| format!("error setting logging. Reason: {}", e))
+        .appender(
+            log4rs::config::Appender::builder("file".to_string(), Box::new(file_appender)).build(),
+        )
+        .build()
+        .map_err(|e| format!("error setting logging. Reason: {}", e))
 }
 
 fn init_logger() -> Result<(), String> {
@@ -733,13 +781,23 @@ fn init_logger() -> Result<(), String> {
             std::io::ErrorKind::AlreadyExists => (),
             _ => {
                 let cwd = env::current_dir().expect("Unable to get current working directory");
-                let expected_path =  format!("{}{}{}{}", cwd.display(), std::path::MAIN_SEPARATOR, ".factotum", std::path::MAIN_SEPARATOR);
-                return Err(format!("unable to create directory '{}' for logfile. Reason: {}", expected_path, e))
+                let expected_path = format!(
+                    "{}{}{}{}",
+                    cwd.display(),
+                    std::path::MAIN_SEPARATOR,
+                    ".factotum",
+                    std::path::MAIN_SEPARATOR
+                );
+                return Err(format!(
+                    "unable to create directory '{}' for logfile. Reason: {}",
+                    expected_path, e
+                ));
             }
-        }
+        },
     };
     let log_config = get_log_config()?;
-    log4rs::init_config(log_config).map_err(|e| format!("couldn't initialize log configuration. Reason: {}", e))
+    log4rs::init_config(log_config)
+        .map_err(|e| format!("couldn't initialize log configuration. Reason: {}", e))
 }
 
 fn main() {
@@ -784,9 +842,7 @@ fn factotum() -> i32 {
                 }
 
                 match str_to_json(&json::encode(&a).unwrap()) {
-                    Ok(a) => {
-                        Some(a)
-                    }
+                    Ok(a) => Some(a),
                     Err(e) => {
                         print!("{}", e);
                         return PROC_OTHER_ERROR;
@@ -810,18 +866,23 @@ fn factotum() -> i32 {
     }
 
     if args.flag_dry_run && args.flag_webhook.is_some() {
-        println!("{}",
-                 "Error: --webhook cannot be used with the --dry-run option".red());
+        println!(
+            "{}",
+            "Error: --webhook cannot be used with the --dry-run option".red()
+        );
         return PROC_OTHER_ERROR;
     }
 
     if let Some(ref wh) = args.flag_webhook {
         if let Err(msg) = is_valid_url(&wh) {
-            println!("{}",
-                     format!("Error: the specifed webhook URL \"{}\" is invalid. Reason: {}",
-                             wh,
-                             msg)
-                         .red());
+            println!(
+                "{}",
+                format!(
+                    "Error: the specifed webhook URL \"{}\" is invalid. Reason: {}",
+                    wh, msg
+                )
+                .red()
+            );
             return PROC_OTHER_ERROR;
         }
     }
@@ -832,24 +893,29 @@ fn factotum() -> i32 {
 
             if let Some(host_value) = c_map.get(CONSTRAINT_HOST) {
                 if let Err(msg) = is_valid_host(host_value) {
-                    println!("{}",
-                             format!("Warn: the specifed host constraint \"{}\" did not match, \
+                    println!(
+                        "{}",
+                        format!(
+                            "Warn: the specifed host constraint \"{}\" did not match, \
                                       no tasks have been executed. Reason: {}",
-                                     host_value,
-                                     msg)
-                                 .yellow());
+                            host_value, msg
+                        )
+                        .yellow()
+                    );
                     return PROC_SUCCESS;
                 }
             }
         }
 
         if !args.flag_dry_run {
-            parse_file_and_execute(&args.arg_factfile,
-                                   env_json,
-                                   args.flag_start,
-                                   args.flag_webhook,
-                                   tag_map,
-                                   args.flag_max_stdouterr_size)
+            parse_file_and_execute(
+                &args.arg_factfile,
+                env_json,
+                args.flag_start,
+                args.flag_webhook,
+                tag_map,
+                args.flag_max_stdouterr_size,
+            )
         } else {
             parse_file_and_simulate(&args.arg_factfile, env_json, args.flag_start)
         }
@@ -876,7 +942,7 @@ fn factotum() -> i32 {
                         Err(m) => {
                             print_err!("{}{}", "Error: ".red(), m.red());
                             PROC_OTHER_ERROR
-                        }                        
+                        }
                     }
                 } else {
                     print!("{}", dot);
@@ -913,9 +979,11 @@ fn test_is_valid_url() {
     match is_valid_url("potato.com/") {
         Ok(_) => panic!("no http/s?"),
         Err(msg) => {
-            assert_eq!(msg,
-                       "URL must begin with 'http://' or 'https://' to be used with Factotum \
-                        webhooks")
+            assert_eq!(
+                msg,
+                "URL must begin with 'http://' or 'https://' to be used with Factotum \
+                        webhooks"
+            )
         } // this is good
     }
 }
@@ -959,7 +1027,9 @@ fn test_write_to_file() {
 fn validate_ok_factfile_good() {
     let test_file_path = "./tests/resources/example_ok.factfile";
     let is_valid = validate(test_file_path, None);
-    let expected: String = format!("'{}' is a valid Factfile!", test_file_path).green().to_string();
+    let expected: String = format!("'{}' is a valid Factfile!", test_file_path)
+        .green()
+        .to_string();
     assert_eq!(is_valid, Ok(expected));
 }
 
@@ -986,33 +1056,45 @@ fn have_valid_config() {
 
 #[test]
 fn get_duration_under_minute() {
-    assert_eq!(get_duration_as_string(&Duration::new(2, 500000099)),
-               "2.5s".to_string());
-    assert_eq!(get_duration_as_string(&Duration::new(0, 0)),
-               "0.0s".to_string());
+    assert_eq!(
+        get_duration_as_string(&Duration::new(2, 500000099)),
+        "2.5s".to_string()
+    );
+    assert_eq!(
+        get_duration_as_string(&Duration::new(0, 0)),
+        "0.0s".to_string()
+    );
 }
 
 #[test]
 fn get_duration_under_hour() {
-    assert_eq!(get_duration_as_string(&Duration::new(62, 500000099)),
-               "1m, 2s".to_string()); // drop nanos for minute level precision
-    assert_eq!(get_duration_as_string(&Duration::new(59 * 60 + 59, 0)),
-               "59m, 59s".to_string());
+    assert_eq!(
+        get_duration_as_string(&Duration::new(62, 500000099)),
+        "1m, 2s".to_string()
+    ); // drop nanos for minute level precision
+    assert_eq!(
+        get_duration_as_string(&Duration::new(59 * 60 + 59, 0)),
+        "59m, 59s".to_string()
+    );
 }
 
 #[test]
 fn get_duration_with_hours() {
-    assert_eq!(get_duration_as_string(&Duration::new(3600, 0)),
-               "1h, 0m, 0s".to_string());
-    assert_eq!(get_duration_as_string(&Duration::new(3600 * 10 + 63, 0)),
-               "10h, 1m, 3s".to_string());
+    assert_eq!(
+        get_duration_as_string(&Duration::new(3600, 0)),
+        "1h, 0m, 0s".to_string()
+    );
+    assert_eq!(
+        get_duration_as_string(&Duration::new(3600 * 10 + 63, 0)),
+        "10h, 1m, 3s".to_string()
+    );
 }
 
 #[test]
 fn test_get_task_result_line_str() {
     use chrono::UTC;
     use factotum::executor::execution_strategy::RunResult;
-    use factotum::factfile::{Task as FactfileTask, OnResult};
+    use factotum::factfile::{OnResult, Task as FactfileTask};
 
     // successful after 20 secs
     let dt = UTC::now();
@@ -1041,14 +1123,16 @@ fn test_get_task_result_line_str() {
         }),
     };
 
-    let expected = format!("Task '{}' was started at {}\nTask '{}' stdout:\n{}\n{}{}{}\n",
-                           "hello world".cyan(),
-                           dt,
-                           "hello world".cyan(),
-                           "hello world".bold(),
-                           "Task '".green(),
-                           "hello world".cyan(),
-                           "': succeeded after 20.0s".green());
+    let expected = format!(
+        "Task '{}' was started at {}\nTask '{}' stdout:\n{}\n{}{}{}\n",
+        "hello world".cyan(),
+        dt,
+        "hello world".cyan(),
+        "hello world".bold(),
+        "Task '".green(),
+        "hello world".cyan(),
+        "': succeeded after 20.0s".green()
+    );
     let (result_stdout, result_stderr) = get_task_result_line_str(&sample_task);
     assert_eq!(result_stdout, expected);
     assert_eq!(result_stderr, None);
@@ -1080,20 +1164,27 @@ fn test_get_task_result_line_str() {
         }),
     };
 
-    assert_eq!(format!("Task '{}' stderr:\n{}\n",
-                       sample_task.name.cyan(),
-                       "There's errors".red()),
-               get_task_result_line_str(&sample_task_stdout).1.unwrap());
-    assert_eq!(get_task_result_line_str(&sample_task_stdout).0,
-               format!("Task '{}' was started at {}\nTask '{}' stdout:\n{}\n{}{}{}\n",
-                       "hello world".cyan(),
-                       dt,
-                       "hello world".cyan(),
-                       "hello world".bold(),
-                       "Task '".red(),
-                       "hello world".cyan(),
-                       "': failed after 20.0s. Reason: Something about not being in continue job"
-                           .red()));
+    assert_eq!(
+        format!(
+            "Task '{}' stderr:\n{}\n",
+            sample_task.name.cyan(),
+            "There's errors".red()
+        ),
+        get_task_result_line_str(&sample_task_stdout).1.unwrap()
+    );
+    assert_eq!(
+        get_task_result_line_str(&sample_task_stdout).0,
+        format!(
+            "Task '{}' was started at {}\nTask '{}' stdout:\n{}\n{}{}{}\n",
+            "hello world".cyan(),
+            dt,
+            "hello world".cyan(),
+            "hello world".bold(),
+            "Task '".red(),
+            "hello world".cyan(),
+            "': failed after 20.0s. Reason: Something about not being in continue job".red()
+        )
+    );
 
     // skipped task (previous failure/noop)
     let task_skipped = Task::<&FactfileTask> {
@@ -1115,8 +1206,10 @@ fn test_get_task_result_line_str() {
         run_result: None,
     };
 
-    assert_eq!(format!("Task '{}': skipped!\n", "skip".cyan()),
-               get_task_result_line_str(&task_skipped).0);
+    assert_eq!(
+        format!("Task '{}': skipped!\n", "skip".cyan()),
+        get_task_result_line_str(&task_skipped).0
+    );
     assert_eq!(None, get_task_result_line_str(&task_skipped).1);
 
     let task_init_fail = Task::<&FactfileTask> {
@@ -1138,10 +1231,14 @@ fn test_get_task_result_line_str() {
         run_result: None,
     };
 
-    assert_eq!(format!("Task '{}': {}!\n",
-                       "init fail".cyan(),
-                       "Factotum could not start the task".red()),
-               get_task_result_line_str(&task_init_fail).0);
+    assert_eq!(
+        format!(
+            "Task '{}': {}!\n",
+            "init fail".cyan(),
+            "Factotum could not start the task".red()
+        ),
+        get_task_result_line_str(&task_init_fail).0
+    );
     assert_eq!(None, get_task_result_line_str(&task_init_fail).1);
 
     let task_failure = Task::<&FactfileTask> {
@@ -1169,29 +1266,33 @@ fn test_get_task_result_line_str() {
         }),
     };
 
-    let expected_failed =
-        format!("Task '{}' was started at {}\nTask '{}' stdout:\n{}\n{}{}{}\n",
-                "fails".cyan(),
-                dt,
-                "fails".cyan(),
-                "hello world".bold(),
-                "Task '".red(),
-                "fails".cyan(),
-                "': couldn't be started. Reason: The task exited with something unexpected".red());
+    let expected_failed = format!(
+        "Task '{}' was started at {}\nTask '{}' stdout:\n{}\n{}{}{}\n",
+        "fails".cyan(),
+        dt,
+        "fails".cyan(),
+        "hello world".bold(),
+        "Task '".red(),
+        "fails".cyan(),
+        "': couldn't be started. Reason: The task exited with something unexpected".red()
+    );
     let (stdout_failed, stderr_failed) = get_task_result_line_str(&task_failure);
     assert_eq!(expected_failed, stdout_failed);
-    assert_eq!(format!("Task '{}' stderr:\n{}\n",
-                       "fails".cyan(),
-                       "There's errors".red()),
-               stderr_failed.unwrap());
-
+    assert_eq!(
+        format!(
+            "Task '{}' stderr:\n{}\n",
+            "fails".cyan(),
+            "There's errors".red()
+        ),
+        stderr_failed.unwrap()
+    );
 }
 
 #[test]
 fn test_get_task_results_str_summary() {
     use chrono::UTC;
     use factotum::executor::execution_strategy::RunResult;
-    use factotum::factfile::{Task as FactfileTask, OnResult};
+    use factotum::factfile::{OnResult, Task as FactfileTask};
 
     let dt = UTC::now();
 
@@ -1221,7 +1322,6 @@ fn test_get_task_results_str_summary() {
             return_code: 0,
         }),
     };
-
 
     let task_two_spec = FactfileTask {
         name: "hello world 2".to_string(),
@@ -1261,9 +1361,11 @@ fn test_get_task_results_str_summary() {
 
     let (one_task_stdout, one_task_stderr) = get_task_results_str(&tasks);
     let (first_task_stdout, first_task_stderr) = get_task_result_line_str(&tasks[0]);
-    let expected_one_task = format!("{}{}",
-                                    first_task_stdout,
-                                    "1/1 tasks run in 20.0s\n".green());
+    let expected_one_task = format!(
+        "{}{}",
+        first_task_stdout,
+        "1/1 tasks run in 20.0s\n".green()
+    );
 
     assert_eq!(one_task_stdout, expected_one_task);
     let first_task_stderr_str = first_task_stderr.unwrap();
@@ -1273,14 +1375,17 @@ fn test_get_task_results_str_summary() {
 
     let (two_task_stdout, two_task_stderr) = get_task_results_str(&tasks);
     let (task_two_stdout, task_two_stderr) = get_task_result_line_str(&tasks[1]);
-    let expected_two_task = format!("{}{}{}",
-                                    first_task_stdout,
-                                    task_two_stdout,
-                                    "2/2 tasks run in 1m, 40s\n".green());
+    let expected_two_task = format!(
+        "{}{}{}",
+        first_task_stdout,
+        task_two_stdout,
+        "2/2 tasks run in 1m, 40s\n".green()
+    );
     assert_eq!(two_task_stdout, expected_two_task);
-    assert_eq!(two_task_stderr,
-               format!("{}{}", first_task_stderr_str, task_two_stderr.unwrap()));
-
+    assert_eq!(
+        two_task_stderr,
+        format!("{}{}", first_task_stderr_str, task_two_stderr.unwrap())
+    );
 }
 
 #[test]
@@ -1300,7 +1405,6 @@ fn test_start_task_validation_not_present() {
 
 #[test]
 fn test_start_task_cycles() {
-
     use factotum::factfile::*;
 
     let mut factfile = Factfile::new("N/A", "test");
@@ -1360,8 +1464,10 @@ fn test_start_task_cycles() {
 
     match validate_start_task(&factfile, "c") {
         Err(r) => {
-            assert_eq!(r,
-                       "the job cannot be started here without triggering prior tasks")
+            assert_eq!(
+                r,
+                "the job cannot be started here without triggering prior tasks"
+            )
         }
         _ => unreachable!("the task validated when it shouldn't have"),
     }

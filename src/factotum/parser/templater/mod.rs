@@ -22,10 +22,9 @@ use rustc_serialize::json::Json;
 pub fn decorate_str(template: &str, env: &Json) -> Result<String, String> {
     let compiled_template = mustache::compile_str(&template);
     let mut bytes = vec![];
-    compiled_template.render(&mut bytes, &env)
+    compiled_template
+        .render(&mut bytes, &env)
         .map_err(|e| format!("Error rendering template: {}", e))?;
-    String::from_utf8(bytes).map_err(|e| {
-        format!("Error inflating rendered template to utf8: {}",
-                e)
-    })
+    String::from_utf8(bytes)
+        .map_err(|e| format!("Error inflating rendered template to utf8: {}", e))
 }

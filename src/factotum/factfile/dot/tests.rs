@@ -15,8 +15,8 @@
 use super::*;
 use factotum::factfile::Factfile;
 use factotum::tests::make_task;
-use std::io::prelude::*;
 use std::fs::File;
+use std::io::prelude::*;
 
 #[inline]
 fn resource(name: &str) -> String {
@@ -33,7 +33,6 @@ fn file_contents(name: &str) -> String {
 
 #[test]
 fn generate_graphviz_dot_good() {
-
     //  Expected graph:
     //
     //        apple----------             turnip

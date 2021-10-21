@@ -14,10 +14,10 @@
 
 #[cfg(test)]
 mod tests;
-use std::collections::HashMap;
-use factotum::executor::execution_strategy::RunResult;
-use chrono::UTC;
 use chrono::DateTime;
+use chrono::UTC;
+use factotum::executor::execution_strategy::RunResult;
+use std::collections::HashMap;
 
 #[derive(Clone, PartialEq, Debug)]
 pub enum State {
@@ -68,15 +68,15 @@ impl<T> TaskList<T> {
 
     pub fn add_group(&mut self, tasks: TaskGroup<T>) -> Result<(), String> {
         {
-            let new_edges: Vec<&str> = tasks.iter()
-                .map(|t| t.name.as_ref())
-                .collect();
+            let new_edges: Vec<&str> = tasks.iter().map(|t| t.name.as_ref()).collect();
 
             for edge in new_edges {
                 if self.edges.contains_key(edge) {
-                    return Err(format!("Task '{}' has been added already - task names must be \
+                    return Err(format!(
+                        "Task '{}' has been added already - task names must be \
                                         unique",
-                                       edge));
+                        edge
+                    ));
                 } else {
                     self.edges.insert(edge.to_string(), vec![]);
                 }
@@ -124,8 +124,13 @@ impl<T> TaskList<T> {
 
     fn get_descendants_recursively(&self, task_name: &str) -> Vec<String> {
         let default = &vec![];
-        let deps: Vec<String> =
-            self.edges.get(task_name).unwrap_or(default).iter().map(|x| x.clone()).collect();
+        let deps: Vec<String> = self
+            .edges
+            .get(task_name)
+            .unwrap_or(default)
+            .iter()
+            .map(|x| x.clone())
+            .collect();
 
         let mut seen = vec![];
 

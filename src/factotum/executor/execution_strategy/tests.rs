@@ -12,11 +12,11 @@
 // governing permissions and limitations there under.
 //
 
-use factotum::executor::execution_strategy::*;
-use std::process::Command;
 use chrono::duration::Duration;
+use factotum::executor::execution_strategy::*;
 use std::cmp;
 use std::iter;
+use std::process::Command;
 
 fn fill(fillstr: &str, times: usize) -> String {
     iter::repeat(fillstr).take(times).collect::<String>()
@@ -24,7 +24,6 @@ fn fill(fillstr: &str, times: usize) -> String {
 
 #[test]
 fn simulation_text_good() {
-
     let mut command = Command::new("sh");
     command.arg("-c");
     command.arg("does_something.sh");
@@ -44,27 +43,40 @@ fn simulation_text_good() {
     let task_name_width = cmp::max(task_name.len() + 2, "TASK".len() + 2);
     let command_width = cmp::max("COMMAND".len() + 2, command_text.len() + 2);
 
-    println!("task width:{} command width: {}",
-             task_name_width,
-             command_width);
+    println!(
+        "task width:{} command width: {}",
+        task_name_width, command_width
+    );
 
-    let lines = vec![format!("/{}|{}\\",
-                             fill("-", task_name_width),
-                             fill("-", command_width)),
-                     format!("| TASK {}| COMMAND {}|",
-                             fill(" ", task_name_width - " TASK ".len()),
-                             fill(" ", command_width - " COMMAND ".len())),
-                     format!("|{}|{}|",
-                             fill("-", task_name_width),
-                             fill("-", command_width)),
-                     format!("| {:taskwidth$} | {:commandwidth$} |",
-                             task_name,
-                             command_text,
-                             taskwidth = task_name_width - 2,
-                             commandwidth = command_width - 2),
-                     format!("\\{}|{}/\n",
-                             fill("-", task_name_width),
-                             fill("-", command_width))];
+    let lines = vec![
+        format!(
+            "/{}|{}\\",
+            fill("-", task_name_width),
+            fill("-", command_width)
+        ),
+        format!(
+            "| TASK {}| COMMAND {}|",
+            fill(" ", task_name_width - " TASK ".len()),
+            fill(" ", command_width - " COMMAND ".len())
+        ),
+        format!(
+            "|{}|{}|",
+            fill("-", task_name_width),
+            fill("-", command_width)
+        ),
+        format!(
+            "| {:taskwidth$} | {:commandwidth$} |",
+            task_name,
+            command_text,
+            taskwidth = task_name_width - 2,
+            commandwidth = command_width - 2
+        ),
+        format!(
+            "\\{}|{}/\n",
+            fill("-", task_name_width),
+            fill("-", command_width)
+        ),
+    ];
 
     let expected = lines.join("\n");
 
@@ -84,8 +96,10 @@ fn simulation_returns_good() {
 
     assert_eq!(result.return_code, 0);
     assert_eq!(result.duration, Duration::seconds(0).to_std().ok().unwrap());
-    assert_eq!(result.stdout.unwrap(),
-               simulation_text("hello-world", &command));
+    assert_eq!(
+        result.stdout.unwrap(),
+        simulation_text("hello-world", &command)
+    );
     assert!(result.stderr.is_some() == false)
 }
 
@@ -116,8 +130,10 @@ fn os_execution_task_exec_failed() {
     assert_eq!(result.stderr, None);
     assert_eq!(result.stdout, None);
     let expected_msg = "Error executing process - No such file or directory".to_string();
-    assert_eq!(result.task_execution_error.unwrap()[..expected_msg.len()],
-               expected_msg);
+    assert_eq!(
+        result.task_execution_error.unwrap()[..expected_msg.len()],
+        expected_msg
+    );
 }
 
 #[test]

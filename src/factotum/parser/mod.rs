@@ -12,15 +12,15 @@
 // governing permissions and limitations there under.
 //
 
+pub mod schemavalidator;
+mod templater;
 #[cfg(test)]
 mod tests;
-mod templater;
-pub mod schemavalidator;
 
-use std::io::prelude::*;
-use std::fs::File;
-use rustc_serialize::json::{self, Json};
 use super::factfile;
+use rustc_serialize::json::{self, Json};
+use std::fs::File;
+use std::io::prelude::*;
 
 pub struct TaskReturnCodeMapping {
     pub continue_job: Vec<i32>,
@@ -32,50 +32,58 @@ pub enum OverrideResultMappings {
     None,
 }
 
-pub fn parse(factfile: &str,
-             env: Option<Json>,
-             overrides: OverrideResultMappings)
-             -> Result<factfile::Factfile, String> {
+pub fn parse(
+    factfile: &str,
+    env: Option<Json>,
+    overrides: OverrideResultMappings,
+) -> Result<factfile::Factfile, String> {
     info!("reading {} into memory", factfile);
     let mut fh = File::open(&factfile)
         .map_err(|e| format!("Couldn't open '{}' for reading: {}", factfile, e))?;
     let mut f = String::new();
-    fh.read_to_string(&mut f).map_err(|e| format!("Couldn't read '{}': {}", factfile, e))?;
+    fh.read_to_string(&mut f)
+        .map_err(|e| format!("Couldn't read '{}': {}", factfile, e))?;
     info!("file {} was read successfully!", factfile);
 
     parse_str(&f, factfile, env, overrides)
 }
 
-fn parse_str(json: &str,
-             from_filename: &str,
-             env: Option<Json>,
-             overrides: OverrideResultMappings)
-             -> Result<factfile::Factfile, String> {
+fn parse_str(
+    json: &str,
+    from_filename: &str,
+    env: Option<Json>,
+    overrides: OverrideResultMappings,
+) -> Result<factfile::Factfile, String> {
     info!("parsing json:\n{}", json);
 
     let validation_result = schemavalidator::validate_against_factfile_schema(json);
 
-    match validation_result {        
+    match validation_result {
         Ok(_) => {
-            info!("'{}' matches the factotum schema definition!",
-                  from_filename);
+            info!(
+                "'{}' matches the factotum schema definition!",
+                from_filename
+            );
 
             parse_valid_json(json, env, overrides).map_err(|msg| {
-                format!("'{}' is not a valid factotum factfile: {}",
-                        from_filename,
-                        msg)
+                format!(
+                    "'{}' is not a valid factotum factfile: {}",
+                    from_filename, msg
+                )
             })
         }
         Err(msg) => {
-            info!("'{}' failed to match factfile schema definition!",
-                  from_filename);
-            Err(format!("'{}' is not a valid factotum factfile: {}",
-                        from_filename,
-                        msg))
+            info!(
+                "'{}' failed to match factfile schema definition!",
+                from_filename
+            );
+            Err(format!(
+                "'{}' is not a valid factotum factfile: {}",
+                from_filename, msg
+            ))
         }
     }
 }
-
 
 #[derive(RustcEncodable, RustcDecodable)]
 #[allow(dead_code)]
@@ -108,25 +116,28 @@ struct FactfileTaskResultFormat {
     continueJob: Vec<i32>,
 }
 
-fn parse_valid_json(file: &str,
-                    conf: Option<Json>,
-                    overrides: OverrideResultMappings)
-                    -> Result<factfile::Factfile, String> {
+fn parse_valid_json(
+    file: &str,
+    conf: Option<Json>,
+    overrides: OverrideResultMappings,
+) -> Result<factfile::Factfile, String> {
     let schema: SelfDescribingJson = json::decode(file).map_err(|e| e.to_string())?;
-    let compact_json:String = json::encode(&schema).map_err(|e| e.to_string())?;
+    let compact_json: String = json::encode(&schema).map_err(|e| e.to_string())?;
     let decoded_json = schema.data;
 
-    let final_compact_json:String = if let Some(ref subs) = conf {
+    let final_compact_json: String = if let Some(ref subs) = conf {
         templater::decorate_str(&compact_json, &subs)?
     } else {
         compact_json.clone()
-    }.to_string();
+    }
+    .to_string();
 
     let final_dag_name = if let Some(ref subs) = conf {
         templater::decorate_str(&decoded_json.name, &subs)?
     } else {
         decoded_json.name.clone()
-    }.to_string();
+    }
+    .to_string();
 
     let mut ff = factfile::Factfile::new(final_compact_json, final_dag_name);
 
@@ -135,21 +146,29 @@ fn parse_valid_json(file: &str,
             templater::decorate_str(&file_task.name, &subs)?
         } else {
             file_task.name.clone()
-        }.to_string();
+        }
+        .to_string();
 
         // TODO errs in here - ? add task should Result not panic!
         info!("adding task '{}'", final_name);
 
         if file_task.onResult.continueJob.len() == 0 {
-            return Err(format!("the task '{}' has no way to continue successfully.",
-                               final_name));
+            return Err(format!(
+                "the task '{}' has no way to continue successfully.",
+                final_name
+            ));
         } else {
             for cont in file_task.onResult.continueJob.iter() {
-                if file_task.onResult
+                if file_task
+                    .onResult
                     .terminateJobWithSuccess
                     .iter()
-                    .any(|conflict| conflict == cont) {
-                    return Err(format!("the task '{}' has conflicting actions.", final_name));
+                    .any(|conflict| conflict == cont)
+                {
+                    return Err(format!(
+                        "the task '{}' has conflicting actions.",
+                        final_name
+                    ));
                 }
             }
         }
@@ -157,12 +176,13 @@ fn parse_valid_json(file: &str,
         let mut decorated_args = vec![];
         let mut decorated_deps = vec![];
         if let Some(ref subs) = conf {
-            info!("applying variables command and args of '{}'",
-                  &final_name);
+            info!("applying variables command and args of '{}'", &final_name);
 
-            info!("before:\n\tcommand: '{}'\n\targs: '{}'",
-                  file_task.command,
-                  file_task.arguments.join(" "));
+            info!(
+                "before:\n\tcommand: '{}'\n\targs: '{}'",
+                file_task.command,
+                file_task.arguments.join(" ")
+            );
 
             let decorated_command = templater::decorate_str(&file_task.command, &subs)?;
 
@@ -170,17 +190,21 @@ fn parse_valid_json(file: &str,
                 decorated_args.push(templater::decorate_str(arg, &subs)?)
             }
 
-            info!("after:\n\tcommand: '{}'\n\targs: '{}'",
-                  decorated_command,
-                  decorated_args.join(" "));
+            info!(
+                "after:\n\tcommand: '{}'\n\targs: '{}'",
+                decorated_command,
+                decorated_args.join(" ")
+            );
 
             for dep in file_task.dependsOn.iter() {
                 decorated_deps.push(templater::decorate_str(dep, &subs)?)
             }
 
-            info!("after:\n\tcommand: '{}'\n\tdeps: '{}'",
-                  decorated_command,
-                  decorated_deps.join(" "));
+            info!(
+                "after:\n\tcommand: '{}'\n\tdeps: '{}'",
+                decorated_command,
+                decorated_deps.join(" ")
+            );
         } else {
             info!("No config specified, writing args & deps as undecorated strings");
             for arg in file_task.arguments.iter() {
@@ -198,18 +222,21 @@ fn parse_valid_json(file: &str,
             OverrideResultMappings::All(ref with_value) => {
                 (&with_value.terminate_early, &with_value.continue_job)
             }
-            OverrideResultMappings::None => {
-                (&file_task.onResult.terminateJobWithSuccess, &file_task.onResult.continueJob)
-            }
+            OverrideResultMappings::None => (
+                &file_task.onResult.terminateJobWithSuccess,
+                &file_task.onResult.continueJob,
+            ),
         };
 
-        ff.add_task(&final_name,
-                    &deps,
-                    &file_task.executor,
-                    &file_task.command,
-                    &args,
-                    terminate_mappings,
-                    continue_mappings);
+        ff.add_task(
+            &final_name,
+            &deps,
+            &file_task.executor,
+            &file_task.command,
+            &args,
+            terminate_mappings,
+            continue_mappings,
+        );
     }
     Ok(ff)
 }

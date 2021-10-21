@@ -20,15 +20,16 @@ static JOB_UPDATE_SCHEMA_NAME: &'static str = "iglu:com.snowplowanalytics.\
 static TASK_UPDATE_SCHEMA_NAME: &'static str = "iglu:com.snowplowanalytics.\
                                                factotum/task_update/jsonschema/1-0-0";
 
-use factotum::executor::{ExecutionState, ExecutionUpdate, TaskSnapshot,
-                         Transition as ExecutorTransition};
 use super::jobcontext::JobContext;
 use chrono::{self, UTC};
-use std::collections::BTreeMap;
-use rustc_serialize::Encodable;
-use rustc_serialize;
-use rustc_serialize::json::{self, ToJson, Json};
 use factotum::executor::task_list::State;
+use factotum::executor::{
+    ExecutionState, ExecutionUpdate, TaskSnapshot, Transition as ExecutorTransition,
+};
+use rustc_serialize;
+use rustc_serialize::json::{self, Json, ToJson};
+use rustc_serialize::Encodable;
+use std::collections::BTreeMap;
 use std::collections::HashMap;
 
 #[derive(RustcDecodable, RustcEncodable, Debug, PartialEq)]
@@ -72,7 +73,6 @@ impl Encodable for TaskUpdate {
 
 impl ToJson for TaskUpdate {
     fn to_json(&self) -> Json {
-
         let mut d = BTreeMap::new();
 
         // don't emit optional fields
@@ -120,9 +120,10 @@ impl ToJson for TaskUpdate {
         }
 
         d.insert("taskName".to_string(), self.taskName.to_json());
-        d.insert("state".to_string(),
-                 Json::from_str(&json::encode(&self.state).unwrap()).unwrap());
-
+        d.insert(
+            "state".to_string(),
+            Json::from_str(&json::encode(&self.state).unwrap()).unwrap(),
+        );
 
         Json::Object(d)
     }
@@ -137,14 +138,14 @@ pub struct SelfDescribingWrapper<'a> {
 #[derive(RustcDecodable, RustcEncodable, Debug)]
 pub struct ApplicationContext {
     version: String,
-    name: String
+    name: String,
 }
 
 impl ApplicationContext {
     pub fn new(context: &JobContext) -> Self {
         ApplicationContext {
             version: context.factotum_version.clone(),
-            name: "factotum".to_string()
+            name: "factotum".to_string(),
         }
     }
 }
@@ -157,12 +158,13 @@ pub struct JobTransition {
 }
 
 impl JobTransition {
-    pub fn new(prev_state: &Option<ExecutionState>,
-               current_state: &ExecutionState,
-               task_snap: &TaskSnapshot)
-               -> Self {
+    pub fn new(
+        prev_state: &Option<ExecutionState>,
+        current_state: &ExecutionState,
+        task_snap: &TaskSnapshot,
+    ) -> Self {
         JobTransition {
-            previousState: match *prev_state { 
+            previousState: match *prev_state {
                 Some(ref s) => Some(to_job_run_state(s, task_snap)),
                 None => None,
             },
@@ -176,11 +178,10 @@ fn to_job_run_state(state: &ExecutionState, tasks: &TaskSnapshot) -> JobRunState
         ExecutionState::Started => JobRunState::WAITING,
         ExecutionState::Finished => {
             // if any tasks failed, set to failed
-            let failed_tasks = tasks.iter()
-                .any(|t| match t.state {
-                    State::Failed(_) => true,
-                    _ => false,
-                });
+            let failed_tasks = tasks.iter().any(|t| match t.state {
+                State::Failed(_) => true,
+                _ => false,
+            });
             if failed_tasks {
                 JobRunState::FAILED
             } else {
@@ -213,11 +214,15 @@ pub struct JobUpdate {
     transition: Option<JobTransition>,
     transitions: Option<Vec<TaskTransition>>,
     taskStates: Vec<TaskUpdate>,
-    tags: HashMap<String,String>,
+    tags: HashMap<String, String>,
 }
 
 impl JobUpdate {
-    pub fn new(context: &JobContext, execution_update: &ExecutionUpdate, max_stdouterr_size: &usize) -> Self {
+    pub fn new(
+        context: &JobContext,
+        execution_update: &ExecutionUpdate,
+        max_stdouterr_size: &usize,
+    ) -> Self {
         JobUpdate {
             jobName: context.job_name.clone(),
             jobReference: context.job_reference.clone(),
@@ -225,43 +230,49 @@ impl JobUpdate {
             factfile: context.factfile.clone(),
             applicationContext: ApplicationContext::new(&context),
             tags: context.tags.clone(),
-            runState: to_job_run_state(&execution_update.execution_state,
-                                       &execution_update.task_snapshot),
+            runState: to_job_run_state(
+                &execution_update.execution_state,
+                &execution_update.task_snapshot,
+            ),
             startTime: to_string_datetime(&context.start_time),
             runDuration: (UTC::now() - context.start_time).to_string(),
-            taskStates: JobUpdate::to_task_states(&execution_update.task_snapshot, &max_stdouterr_size),
+            taskStates: JobUpdate::to_task_states(
+                &execution_update.task_snapshot,
+                &max_stdouterr_size,
+            ),
             transition: {
                 match execution_update.transition {
-                    ExecutorTransition::Job(ref j) => {
-                        Some(JobTransition::new(&j.from, &j.to, &execution_update.task_snapshot))
-                    }
+                    ExecutorTransition::Job(ref j) => Some(JobTransition::new(
+                        &j.from,
+                        &j.to,
+                        &execution_update.task_snapshot,
+                    )),
                     _ => None,
                 }
             },
             transitions: {
                 match execution_update.transition {
                     ExecutorTransition::Task(ref tu) => {
-                        let tasks = tu.iter()
-                            .map(|t| {
-                                TaskTransition {
-                                    taskName: t.task_name.clone(),
-                                    previousState: match t.from_state {
-                                        State::Waiting => TaskRunState::WAITING,
-                                        State::Running => TaskRunState::RUNNING,
-                                        State::Skipped(_) => TaskRunState::SKIPPED,
-                                        State::Success => TaskRunState::SUCCEEDED,
-                                        State::SuccessNoop => TaskRunState::SUCCEEDED_NO_OP,
-                                        State::Failed(_) => TaskRunState::FAILED,
-                                    },
-                                    currentState: match t.to_state {
-                                        State::Waiting => TaskRunState::WAITING,
-                                        State::Running => TaskRunState::RUNNING,
-                                        State::Skipped(_) => TaskRunState::SKIPPED,
-                                        State::Success => TaskRunState::SUCCEEDED,
-                                        State::SuccessNoop => TaskRunState::SUCCEEDED_NO_OP,
-                                        State::Failed(_) => TaskRunState::FAILED,
-                                    },
-                                }
+                        let tasks = tu
+                            .iter()
+                            .map(|t| TaskTransition {
+                                taskName: t.task_name.clone(),
+                                previousState: match t.from_state {
+                                    State::Waiting => TaskRunState::WAITING,
+                                    State::Running => TaskRunState::RUNNING,
+                                    State::Skipped(_) => TaskRunState::SKIPPED,
+                                    State::Success => TaskRunState::SUCCEEDED,
+                                    State::SuccessNoop => TaskRunState::SUCCEEDED_NO_OP,
+                                    State::Failed(_) => TaskRunState::FAILED,
+                                },
+                                currentState: match t.to_state {
+                                    State::Waiting => TaskRunState::WAITING,
+                                    State::Running => TaskRunState::RUNNING,
+                                    State::Skipped(_) => TaskRunState::SKIPPED,
+                                    State::Success => TaskRunState::SUCCEEDED,
+                                    State::SuccessNoop => TaskRunState::SUCCEEDED_NO_OP,
+                                    State::Failed(_) => TaskRunState::FAILED,
+                                },
                             })
                             .collect();
                         Some(tasks)
@@ -286,63 +297,62 @@ impl JobUpdate {
     fn to_task_states(tasks: &TaskSnapshot, max_stdouterr_size: &usize) -> Vec<TaskUpdate> {
         use chrono::duration::Duration as ChronoDuration;
 
-        tasks.iter()
-            .map(|task| {
-                TaskUpdate {
-                    taskName: task.name.clone(),
-                    state: match task.state {
-                        State::Waiting => TaskRunState::WAITING,
-                        State::Running => TaskRunState::RUNNING,
-                        State::Skipped(_) => TaskRunState::SKIPPED,
-                        State::Success => TaskRunState::SUCCEEDED,
-                        State::SuccessNoop => TaskRunState::SUCCEEDED_NO_OP,
-                        State::Failed(_) => TaskRunState::FAILED,
-                    },
-                    started: if let Some(ref r) = task.run_started {
-                        Some(to_string_datetime(r))
+        tasks
+            .iter()
+            .map(|task| TaskUpdate {
+                taskName: task.name.clone(),
+                state: match task.state {
+                    State::Waiting => TaskRunState::WAITING,
+                    State::Running => TaskRunState::RUNNING,
+                    State::Skipped(_) => TaskRunState::SKIPPED,
+                    State::Success => TaskRunState::SUCCEEDED,
+                    State::SuccessNoop => TaskRunState::SUCCEEDED_NO_OP,
+                    State::Failed(_) => TaskRunState::FAILED,
+                },
+                started: if let Some(ref r) = task.run_started {
+                    Some(to_string_datetime(r))
+                } else {
+                    None
+                },
+                duration: if let Some(ref r) = task.run_result {
+                    Some(ChronoDuration::from_std(r.duration).unwrap().to_string())
+                } else {
+                    None
+                },
+                stdout: if let Some(ref r) = task.run_result {
+                    if let Some(ref stdout) = r.stdout {
+                        Some(tail_n_chars(stdout, *max_stdouterr_size).into())
                     } else {
                         None
-                    },
-                    duration: if let Some(ref r) = task.run_result {
-                        Some(ChronoDuration::from_std(r.duration).unwrap().to_string())
+                    }
+                } else {
+                    None
+                },
+                stderr: if let Some(ref r) = task.run_result {
+                    if let Some(ref stderr) = r.stderr {
+                        Some(tail_n_chars(stderr, *max_stdouterr_size).into())
                     } else {
                         None
-                    },
-                    stdout: if let Some(ref r) = task.run_result {
-                        if let Some(ref stdout) = r.stdout {
-                            Some(tail_n_chars(stdout, *max_stdouterr_size).into())
+                    }
+                } else {
+                    None
+                },
+                returnCode: if let Some(ref r) = task.run_result {
+                    Some(r.return_code)
+                } else {
+                    None
+                },
+                errorMessage: match (&task.state, &task.run_result) {
+                    (&State::Skipped(ref reason), _) => Some(reason.clone()),
+                    (&State::Failed(ref reason), &Some(ref result)) => {
+                        if let Some(ref execution_error) = result.task_execution_error {
+                            Some(execution_error.clone())
                         } else {
-                            None
+                            Some(reason.clone())
                         }
-                    } else {
-                        None
-                    },
-                    stderr: if let Some(ref r) = task.run_result {
-                        if let Some(ref stderr) = r.stderr {
-                            Some(tail_n_chars(stderr, *max_stdouterr_size).into())
-                        } else {
-                            None
-                        }
-                    } else {
-                        None
-                    },
-                    returnCode: if let Some(ref r) = task.run_result {
-                        Some(r.return_code)
-                    } else {
-                        None
-                    },
-                    errorMessage: match (&task.state, &task.run_result) {
-                        (&State::Skipped(ref reason), _) => Some(reason.clone()),
-                        (&State::Failed(ref reason), &Some(ref result)) => {
-                            if let Some(ref execution_error) = result.task_execution_error {
-                                Some(execution_error.clone())
-                            } else {
-                                Some(reason.clone())
-                            }                            
-                        },
-                        _ => None   
-                    },
-                }
+                    }
+                    _ => None,
+                },
             })
             .collect()
     }
@@ -356,7 +366,6 @@ impl Encodable for JobUpdate {
 
 impl ToJson for JobUpdate {
     fn to_json(&self) -> Json {
-
         let mut d = BTreeMap::new();
 
         d.insert("jobName".into(), self.jobName.to_json());
@@ -364,11 +373,15 @@ impl ToJson for JobUpdate {
         d.insert("runReference".into(), self.runReference.to_json());
         d.insert("factfile".into(), self.factfile.to_json());
 
-        d.insert("applicationContext".into(),
-                 Json::from_str(&json::encode(&self.applicationContext).unwrap()).unwrap());
+        d.insert(
+            "applicationContext".into(),
+            Json::from_str(&json::encode(&self.applicationContext).unwrap()).unwrap(),
+        );
 
-        d.insert("runState".into(),
-                 Json::from_str(&json::encode(&self.runState).unwrap()).unwrap());
+        d.insert(
+            "runState".into(),
+            Json::from_str(&json::encode(&self.runState).unwrap()).unwrap(),
+        );
 
         d.insert("startTime".into(), self.startTime.to_json());
         d.insert("runDuration".into(), self.runDuration.to_json());
@@ -377,22 +390,28 @@ impl ToJson for JobUpdate {
 
         match self.transition {
             Some(ref job_transition) => {
-                d.insert("jobTransition".into(),
-                         Json::from_str(&json::encode(&job_transition).unwrap()).unwrap());
+                d.insert(
+                    "jobTransition".into(),
+                    Json::from_str(&json::encode(&job_transition).unwrap()).unwrap(),
+                );
             }
             None => {}
         }
 
         match self.transitions {
             Some(ref task_transition) => {
-                d.insert("taskTransitions".into(),
-                         Json::from_str(&json::encode(&task_transition).unwrap()).unwrap());
-            } 
+                d.insert(
+                    "taskTransitions".into(),
+                    Json::from_str(&json::encode(&task_transition).unwrap()).unwrap(),
+                );
+            }
             None => {}
         }
 
-        d.insert("taskStates".into(),
-                 Json::from_str(&json::encode(&self.taskStates).unwrap()).unwrap());
+        d.insert(
+            "taskStates".into(),
+            Json::from_str(&json::encode(&self.taskStates).unwrap()).unwrap(),
+        );
 
         Json::Object(d)
     }
@@ -404,9 +423,9 @@ pub fn to_string_datetime(datetime: &chrono::DateTime<UTC>) -> String {
 
 pub fn tail_n_chars(s: &str, n: usize) -> &str {
     if n < 1 {
-       ""
+        ""
     } else {
-        if let Some(v) = s.char_indices().rev().nth(n-1).map(|(i, _)| &s[i..]) {
+        if let Some(v) = s.char_indices().rev().nth(n - 1).map(|(i, _)| &s[i..]) {
             v
         } else {
             s

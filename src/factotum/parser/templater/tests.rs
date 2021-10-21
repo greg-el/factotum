@@ -21,14 +21,20 @@ fn from_json(json: &str) -> Json {
 
 #[test]
 fn decorated_string_works() {
-    assert_eq!("hello Ed!".to_string(),
-               decorate_str("hello {{name}}!", &from_json("{\"name\":\"Ed\"}")).unwrap());
+    assert_eq!(
+        "hello Ed!".to_string(),
+        decorate_str("hello {{name}}!", &from_json("{\"name\":\"Ed\"}")).unwrap()
+    );
 }
 
 #[test]
 fn decorated_nested_string_works() {
-    assert_eq!("hello Ted!".to_string(),
-               decorate_str("hello {{person.name}}!",
-                            &from_json("{\"person\": { \"name\":\"Ted\" } }"))
-                   .unwrap())
+    assert_eq!(
+        "hello Ted!".to_string(),
+        decorate_str(
+            "hello {{person.name}}!",
+            &from_json("{\"person\": { \"name\":\"Ted\" } }")
+        )
+        .unwrap()
+    )
 }

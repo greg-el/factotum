@@ -33,15 +33,16 @@ fn task_grp_dup_names_err() {
     let expected_good = tl.add_group(task_group);
     assert!(expected_good.ok().is_some());
 
-
     let mut task_group_err = TaskGroup::<String>::new();
     task_group_err.push(Task::<String>::new("hello", "hello".to_string()));
     let expected_bad = tl.add_group(task_group_err);
     match expected_bad {
         Ok(()) => panic!("Duplicate values added to tasklist"),
         Err(msg) => {
-            assert_eq!("Task 'hello' has been added already - task names must be unique",
-                       msg)
+            assert_eq!(
+                "Task 'hello' has been added already - task names must be unique",
+                msg
+            )
         }
     }
 }
@@ -51,15 +52,19 @@ fn test_get_by_name() {
     let mut tl = TaskList::<String>::new();
     assert!(tl.get_task_by_name("banana").is_some() == false);
 
-    tl.add_group(vec![Task::<String>::new("hello", "world".to_string()),
-                        Task::<String>::new("yes", "world".to_string())])
-        .ok()
-        .unwrap();
+    tl.add_group(vec![
+        Task::<String>::new("hello", "world".to_string()),
+        Task::<String>::new("yes", "world".to_string()),
+    ])
+    .ok()
+    .unwrap();
 
-    tl.add_group(vec![Task::<String>::new("thing", "world".to_string()),
-                        Task::<String>::new("yah", "world".to_string())])
-        .ok()
-        .unwrap();
+    tl.add_group(vec![
+        Task::<String>::new("thing", "world".to_string()),
+        Task::<String>::new("yah", "world".to_string()),
+    ])
+    .ok()
+    .unwrap();
 
     assert!(tl.get_task_by_name("hello").is_some());
     assert!(tl.get_task_by_name("yes").is_some());
@@ -70,9 +75,7 @@ fn test_get_by_name() {
 #[test]
 fn set_child_no_parent_err() {
     let mut tl = TaskList::<&str>::new();
-    tl.add_group(vec![
-                    Task::<&str>::new("child", "world"),
-                    ])
+    tl.add_group(vec![Task::<&str>::new("child", "world")])
         .ok()
         .unwrap();
     let r = tl.set_child("parent", "child");
@@ -82,9 +85,7 @@ fn set_child_no_parent_err() {
 #[test]
 fn set_child_no_child_err() {
     let mut tl = TaskList::<&str>::new();
-    tl.add_group(vec![
-                    Task::<&str>::new("parent", "world"),
-                    ])
+    tl.add_group(vec![Task::<&str>::new("parent", "world")])
         .ok()
         .unwrap();
     let r = tl.set_child("parent", "child");
@@ -94,7 +95,10 @@ fn set_child_no_child_err() {
 #[test]
 fn set_child_good() {
     let mut tl = TaskList::<&str>::new();
-    let tg = vec![Task::<&str>::new("parent", "world"), Task::<&str>::new("child", "world")];
+    let tg = vec![
+        Task::<&str>::new("parent", "world"),
+        Task::<&str>::new("child", "world"),
+    ];
     tl.add_group(tg).ok().unwrap();
     let r = tl.set_child("parent", "child");
     assert!(r.ok().is_some() == true);
@@ -103,49 +107,63 @@ fn set_child_good() {
 #[test]
 fn get_children() {
     let mut tl = TaskList::<&str>::new();
-    let tg = vec![Task::<&str>::new("parent", "world"),
-                  Task::<&str>::new("child", "world"),
-                  Task::<&str>::new("grandchild", "world"),
-                  Task::<&str>::new("grandchild2", "world")];
+    let tg = vec![
+        Task::<&str>::new("parent", "world"),
+        Task::<&str>::new("child", "world"),
+        Task::<&str>::new("grandchild", "world"),
+        Task::<&str>::new("grandchild2", "world"),
+    ];
     tl.add_group(tg).ok().unwrap();
     tl.set_child("parent", "child").ok();
     tl.set_child("child", "grandchild").ok();
     tl.set_child("child", "grandchild2").ok();
 
-    assert_eq!(vec!["grandchild", "grandchild2"],
-               tl.get_descendants("child"));
-    assert_eq!(vec!["child", "grandchild", "grandchild2"],
-               tl.get_descendants("parent"));
+    assert_eq!(
+        vec!["grandchild", "grandchild2"],
+        tl.get_descendants("child")
+    );
+    assert_eq!(
+        vec!["child", "grandchild", "grandchild2"],
+        tl.get_descendants("parent")
+    );
     assert_eq!(Vec::<String>::new(), tl.get_descendants(""))
 }
 
 #[test]
 fn get_children_dups_removed() {
     let mut tl = TaskList::<&str>::new();
-    let tg = vec![Task::<&str>::new("parent", "world"),
-                  Task::<&str>::new("child", "world"),
-                  Task::<&str>::new("grandchild", "world"),
-                  Task::<&str>::new("grandchild2", "world")];
+    let tg = vec![
+        Task::<&str>::new("parent", "world"),
+        Task::<&str>::new("child", "world"),
+        Task::<&str>::new("grandchild", "world"),
+        Task::<&str>::new("grandchild2", "world"),
+    ];
     tl.add_group(tg).ok().unwrap();
     tl.set_child("parent", "child").ok();
     tl.set_child("child", "grandchild").ok();
     tl.set_child("child", "grandchild2").ok();
     tl.set_child("parent", "grandchild2").ok();
 
-    assert_eq!(vec!["grandchild", "grandchild2"],
-               tl.get_descendants("child"));
-    assert_eq!(vec!["child", "grandchild", "grandchild2"],
-               tl.get_descendants("parent"));
+    assert_eq!(
+        vec!["grandchild", "grandchild2"],
+        tl.get_descendants("child")
+    );
+    assert_eq!(
+        vec!["child", "grandchild", "grandchild2"],
+        tl.get_descendants("parent")
+    );
     assert_eq!(Vec::<String>::new(), tl.get_descendants(""))
 }
 
 #[test]
 fn is_task_name_present_good() {
     let mut tl = TaskList::<&str>::new();
-    let tg = vec![Task::<&str>::new("parent", "world"),
-                  Task::<&str>::new("child", "world"),
-                  Task::<&str>::new("grandchild", "world"),
-                  Task::<&str>::new("grandchild2", "world")];
+    let tg = vec![
+        Task::<&str>::new("parent", "world"),
+        Task::<&str>::new("child", "world"),
+        Task::<&str>::new("grandchild", "world"),
+        Task::<&str>::new("grandchild2", "world"),
+    ];
     tl.add_group(tg).ok().unwrap();
 
     assert!(tl.is_task_name_present("parent"));

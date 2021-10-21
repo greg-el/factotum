@@ -13,32 +13,37 @@
 //
 
 use super::*;
-use factotum::parser::schemavalidator;
-use factotum::executor::{ExecutionState, ExecutionUpdate, Transition,
-                         JobTransition as ExecutorJobTransition,
-                         TaskTransition as ExecutorTaskTransition};
-use factotum::webhook::jobcontext::JobContext;
-use chrono::UTC;
-use factotum::tests::make_task;
-use factotum::factfile::Factfile;
-use factotum::executor::task_list::State;
-use factotum::executor::{get_task_execution_list, get_task_snapshot};
-use std::collections::HashMap;
-use factotum::executor::task_list::Task;
-use factotum::executor::execution_strategy::RunResult;
 use chrono::Duration;
-
+use chrono::UTC;
+use factotum::executor::execution_strategy::RunResult;
+use factotum::executor::task_list::State;
+use factotum::executor::task_list::Task;
+use factotum::executor::{get_task_execution_list, get_task_snapshot};
+use factotum::executor::{
+    ExecutionState, ExecutionUpdate, JobTransition as ExecutorJobTransition,
+    TaskTransition as ExecutorTaskTransition, Transition,
+};
+use factotum::factfile::Factfile;
+use factotum::parser::schemavalidator;
+use factotum::tests::make_task;
+use factotum::webhook::jobcontext::JobContext;
+use std::collections::HashMap;
 
 #[test]
 fn to_json_valid_against_schema_job_transition() {
-    let schema = include_str!("../../../../tests/resources/job_update/job_transition_self_desc.\
-                               json");
+    let schema = include_str!(
+        "../../../../tests/resources/job_update/job_transition_self_desc.\
+                               json"
+    );
     let context = JobContext::new("hello", "world", None);
-    let exec_update =
-        ExecutionUpdate::new(ExecutionState::Finished,
-                             vec![],
-                             Transition::Job(ExecutorJobTransition::new(Some(ExecutionState::Running),
-                                                                   ExecutionState::Finished)));
+    let exec_update = ExecutionUpdate::new(
+        ExecutionState::Finished,
+        vec![],
+        Transition::Job(ExecutorJobTransition::new(
+            Some(ExecutionState::Running),
+            ExecutionState::Finished,
+        )),
+    );
     let max_stdouterr_size: usize = 10_000;
     let job_update = JobUpdate::new(&context, &exec_update, &max_stdouterr_size);
     let json_wrapped = job_update.as_self_desc_json();
@@ -52,8 +57,10 @@ fn to_json_valid_against_schema_job_transition() {
 
 #[test]
 fn to_json_valid_against_schema_task_transition_running_to_failed() {
-    let schema = include_str!("../../../../tests/resources/job_update/task_transition_self_desc.\
-                               json");
+    let schema = include_str!(
+        "../../../../tests/resources/job_update/task_transition_self_desc.\
+                               json"
+    );
 
     let mut ff = Factfile::new("N/A", "test");
     ff.add_task_obj(&make_task("apple", &vec![]));
@@ -71,17 +78,22 @@ fn to_json_valid_against_schema_task_transition_running_to_failed() {
         task.state = State::Failed("a reason".to_string());
     }
 
-    let transitions = tasks.iter()
+    let transitions = tasks
+        .iter()
         .map(|task| {
-            ExecutorTaskTransition::new(&task.name,
-                                        State::Running,
-                                        State::Failed("a reason".to_string()))
+            ExecutorTaskTransition::new(
+                &task.name,
+                State::Running,
+                State::Failed("a reason".to_string()),
+            )
         })
         .collect();
 
-    let exec_update = ExecutionUpdate::new(ExecutionState::Finished,
-                                           tasks,
-                                           Transition::Task(transitions));
+    let exec_update = ExecutionUpdate::new(
+        ExecutionState::Finished,
+        tasks,
+        Transition::Task(transitions),
+    );
 
     let max_stdouterr_size: usize = 10_000;
     let job_update = JobUpdate::new(&context, &exec_update, &max_stdouterr_size);
@@ -95,11 +107,12 @@ fn to_json_valid_against_schema_task_transition_running_to_failed() {
     }
 }
 
-
 #[test]
 fn to_json_valid_against_schema_task_transition_waiting_to_running() {
-    let schema = include_str!("../../../../tests/resources/job_update/task_transition_self_desc.\
-                               json");
+    let schema = include_str!(
+        "../../../../tests/resources/job_update/task_transition_self_desc.\
+                               json"
+    );
 
     let mut ff = Factfile::new("N/A", "test");
     ff.add_task_obj(&make_task("apple", &vec![]));
@@ -117,13 +130,16 @@ fn to_json_valid_against_schema_task_transition_waiting_to_running() {
         task.state = State::Running;
     }
 
-    let transitions = tasks.iter()
+    let transitions = tasks
+        .iter()
         .map(|task| ExecutorTaskTransition::new(&task.name, State::Waiting, State::Running))
         .collect();
 
-    let exec_update = ExecutionUpdate::new(ExecutionState::Running,
-                                           tasks,
-                                           Transition::Task(transitions));
+    let exec_update = ExecutionUpdate::new(
+        ExecutionState::Running,
+        tasks,
+        Transition::Task(transitions),
+    );
 
     let max_stdouterr_size: usize = 10_000;
     let job_update = JobUpdate::new(&context, &exec_update, &max_stdouterr_size);
@@ -149,11 +165,14 @@ fn headers_correct() {
     let mut tags = HashMap::new();
     tags.insert("x".into(), "y".into());
     let context = JobContext::new("hello", "world", Some(tags.clone()));
-    let exec_update =
-        ExecutionUpdate::new(ExecutionState::Finished,
-                             vec![],
-                             Transition::Job(ExecutorJobTransition::new(Some(ExecutionState::Running),
-                                                                ExecutionState::Finished)));
+    let exec_update = ExecutionUpdate::new(
+        ExecutionState::Finished,
+        vec![],
+        Transition::Job(ExecutorJobTransition::new(
+            Some(ExecutionState::Running),
+            ExecutionState::Finished,
+        )),
+    );
     let max_stdouterr_size: usize = 10_000;
     let job_update = JobUpdate::new(&context, &exec_update, &max_stdouterr_size);
 
@@ -161,10 +180,15 @@ fn headers_correct() {
     assert_eq!(context.run_reference, job_update.runReference);
     assert_eq!(context.job_name, job_update.jobName);
     assert_eq!(context.factfile, job_update.factfile);
-    assert_eq!(context.factotum_version,
-               job_update.applicationContext.version);
+    assert_eq!(
+        context.factotum_version,
+        job_update.applicationContext.version
+    );
     assert_eq!(job_update.runState, JobRunState::SUCCEEDED);
-    assert_eq!(job_update.startTime.len(), to_string_datetime(&UTC::now()).len());
+    assert_eq!(
+        job_update.startTime.len(),
+        to_string_datetime(&UTC::now()).len()
+    );
     assert!(job_update.runDuration.contains("PT0"));
     assert!(job_update.taskStates.len() == 0);
     assert_eq!(job_update.tags, tags);
@@ -187,11 +211,14 @@ fn failed_headers_correct() {
     }
 
     let context = JobContext::new("hello", "world", None);
-    let exec_update =
-        ExecutionUpdate::new(ExecutionState::Finished,
-                             tasks,
-                             Transition::Job(ExecutorJobTransition::new(Some(ExecutionState::Running),
-                                                                ExecutionState::Finished)));
+    let exec_update = ExecutionUpdate::new(
+        ExecutionState::Finished,
+        tasks,
+        Transition::Job(ExecutorJobTransition::new(
+            Some(ExecutionState::Running),
+            ExecutionState::Finished,
+        )),
+    );
     let max_stdouterr_size: usize = 10_000;
     let upd = JobUpdate::new(&context, &exec_update, &max_stdouterr_size);
 
@@ -204,11 +231,11 @@ fn task_states_converted_no_run_data() {
     use factotum::tests::make_task;
 
     let example_tasks = vec![Task::new("chocolate", make_task("hello", &vec![]))];
-    let start_sample =
-        ExecutionUpdate::new(ExecutionState::Started,
-                             example_tasks,
-                             Transition::Job(ExecutorJobTransition::new(None,
-                                                                        ExecutionState::Started)));
+    let start_sample = ExecutionUpdate::new(
+        ExecutionState::Started,
+        example_tasks,
+        Transition::Job(ExecutorJobTransition::new(None, ExecutionState::Started)),
+    );
 
     let context = JobContext::new("hello", "world", None);
     let max_stdouterr_size: usize = 10_000;
@@ -231,8 +258,10 @@ fn task_states_converted_no_run_data() {
 
 #[test]
 fn task_states_converted_with_run_data() {
-    let mut example_tasks = vec![Task::new("chocolate", make_task("hello", &vec![])),
-                                 Task::new("toffee", make_task("boop", &vec![]))];
+    let mut example_tasks = vec![
+        Task::new("chocolate", make_task("hello", &vec![])),
+        Task::new("toffee", make_task("boop", &vec![])),
+    ];
 
     let now = UTC::now();
 
@@ -256,36 +285,38 @@ fn task_states_converted_with_run_data() {
         duration: Duration::seconds(1).to_std().unwrap(),
     });
 
-    let start_sample =
-        ExecutionUpdate::new(ExecutionState::Started,
-                             example_tasks,
-                             Transition::Job(ExecutorJobTransition::new(None,
-                                                                        ExecutionState::Started)));
+    let start_sample = ExecutionUpdate::new(
+        ExecutionState::Started,
+        example_tasks,
+        Transition::Job(ExecutorJobTransition::new(None, ExecutionState::Started)),
+    );
 
     let context = JobContext::new("hello", "world", None);
     let max_stdouterr_size: usize = 10_000;
     let job_update = JobUpdate::new(&context, &start_sample, &max_stdouterr_size);
 
-    let expected_states = vec![TaskUpdate {
-                                   taskName: "chocolate".to_string(),
-                                   state: TaskRunState::FAILED,
-                                   started: Some(to_string_datetime(&now)),
-                                   duration: Some(Duration::seconds(0).to_string()),
-                                   stdout: Some("get".to_string()),
-                                   stderr: Some("banana".to_string()),
-                                   returnCode: Some(-1),
-                                   errorMessage: Some("some continue job stuff".to_string()),
-                               },
-                               TaskUpdate {
-                                   taskName: "toffee".to_string(),
-                                   state: TaskRunState::SUCCEEDED,
-                                   started: Some(to_string_datetime(&now)),
-                                   duration: Some(Duration::seconds(1).to_string()),
-                                   stdout: None,
-                                   stderr: None,
-                                   returnCode: Some(0),
-                                   errorMessage: None,
-                               }];
+    let expected_states = vec![
+        TaskUpdate {
+            taskName: "chocolate".to_string(),
+            state: TaskRunState::FAILED,
+            started: Some(to_string_datetime(&now)),
+            duration: Some(Duration::seconds(0).to_string()),
+            stdout: Some("get".to_string()),
+            stderr: Some("banana".to_string()),
+            returnCode: Some(-1),
+            errorMessage: Some("some continue job stuff".to_string()),
+        },
+        TaskUpdate {
+            taskName: "toffee".to_string(),
+            state: TaskRunState::SUCCEEDED,
+            started: Some(to_string_datetime(&now)),
+            duration: Some(Duration::seconds(1).to_string()),
+            stdout: None,
+            stderr: None,
+            returnCode: Some(0),
+            errorMessage: None,
+        },
+    ];
 
     assert!(job_update.taskStates.is_empty() == false);
     assert_eq!(job_update.taskStates[0], expected_states[0]);
@@ -302,7 +333,10 @@ fn to_string_datetime_good() {
 #[test]
 fn to_string_datetime_good_round_millis() {
     let sample = UTC::now();
-    assert_eq!(sample.format("%FT%T%.3fZ").to_string(), to_string_datetime(&sample));
+    assert_eq!(
+        sample.format("%FT%T%.3fZ").to_string(),
+        to_string_datetime(&sample)
+    );
 }
 
 fn make_n_char_string(n: usize) -> String {
@@ -315,11 +349,12 @@ fn make_n_char_string_good() {
     assert_eq!(make_n_char_string(3), "XXX");
 }
 
-
 #[test]
 fn big_task_stdout_trimmed() {
-    let mut example_tasks = vec![Task::new("chocolate", make_task("hello", &vec![])),
-                                 Task::new("toffee", make_task("boop", &vec![]))];
+    let mut example_tasks = vec![
+        Task::new("chocolate", make_task("hello", &vec![])),
+        Task::new("toffee", make_task("boop", &vec![])),
+    ];
 
     let now = UTC::now();
 
@@ -341,23 +376,24 @@ fn big_task_stdout_trimmed() {
         return_code: 0,
         task_execution_error: None,
         stderr: None,
-        stdout: Some(format!("{}tail", make_n_char_string(max_len-"tail".len()))), // just fits
+        stdout: Some(format!(
+            "{}tail",
+            make_n_char_string(max_len - "tail".len())
+        )), // just fits
         duration: Duration::seconds(1).to_std().unwrap(),
     });
 
-
-    let start_sample =
-        ExecutionUpdate::new(ExecutionState::Started,
-                             example_tasks,
-                             Transition::Job(ExecutorJobTransition::new(None,
-                                                                        ExecutionState::Started)));
+    let start_sample = ExecutionUpdate::new(
+        ExecutionState::Started,
+        example_tasks,
+        Transition::Job(ExecutorJobTransition::new(None, ExecutionState::Started)),
+    );
 
     let context = JobContext::new("hello", "world", None);
     let max_stdouterr_size: usize = 10_000;
     let job_update = JobUpdate::new(&context, &start_sample, &max_stdouterr_size);
 
-
-    let expected_str = format!("{}tail", make_n_char_string(max_len-"tail".len()));
+    let expected_str = format!("{}tail", make_n_char_string(max_len - "tail".len()));
 
     assert!(job_update.taskStates.is_empty() == false);
     assert_eq!(expected_str.len(), max_len);
@@ -372,13 +408,15 @@ fn big_task_stdout_trimmed() {
         panic!("unexpected: missing stdout over limit")
     };
     assert_eq!(stdout_over_limit, &expected_str); // trimmed from the last result back
-    assert_eq!(stdout_inside_limit, &expected_str);    
+    assert_eq!(stdout_inside_limit, &expected_str);
 }
 
 #[test]
 fn big_task_stderr_trimmed() {
-    let mut example_tasks = vec![Task::new("chocolate", make_task("hello", &vec![])),
-                                 Task::new("toffee", make_task("boop", &vec![]))];
+    let mut example_tasks = vec![
+        Task::new("chocolate", make_task("hello", &vec![])),
+        Task::new("toffee", make_task("boop", &vec![])),
+    ];
 
     let now = UTC::now();
 
@@ -399,24 +437,25 @@ fn big_task_stderr_trimmed() {
     example_tasks[1].run_result = Some(RunResult {
         return_code: 0,
         task_execution_error: None,
-        stderr: Some(format!("{}tail", make_n_char_string(max_len-"tail".len()))),
+        stderr: Some(format!(
+            "{}tail",
+            make_n_char_string(max_len - "tail".len())
+        )),
         stdout: None, // just fits
         duration: Duration::seconds(1).to_std().unwrap(),
     });
 
-
-    let start_sample =
-        ExecutionUpdate::new(ExecutionState::Started,
-                             example_tasks,
-                             Transition::Job(ExecutorJobTransition::new(None,
-                                                                        ExecutionState::Started)));
+    let start_sample = ExecutionUpdate::new(
+        ExecutionState::Started,
+        example_tasks,
+        Transition::Job(ExecutorJobTransition::new(None, ExecutionState::Started)),
+    );
 
     let context = JobContext::new("hello", "world", None);
     let max_stdouterr_size: usize = 10_000;
     let job_update = JobUpdate::new(&context, &start_sample, &max_stdouterr_size);
 
-
-    let expected_str = format!("{}tail", make_n_char_string(max_len-"tail".len()));
+    let expected_str = format!("{}tail", make_n_char_string(max_len - "tail".len()));
 
     assert!(job_update.taskStates.is_empty() == false);
     assert_eq!(expected_str.len(), max_len);
@@ -431,14 +470,14 @@ fn big_task_stderr_trimmed() {
         panic!("unexpected: missing stderr over limit")
     };
     assert_eq!(stderr_over_limit, &expected_str); // trimmed from the last result back
-    assert_eq!(stderr_inside_limit, &expected_str);  
+    assert_eq!(stderr_inside_limit, &expected_str);
 }
 
 #[test]
 fn tail_n_chars_good() {
     let twenty_character_str = make_n_char_string(20);
-    assert_eq!(tail_n_chars(&twenty_character_str, 10).len(), 10);  
-    assert_eq!(tail_n_chars(&twenty_character_str, 21).len(), 20);  
+    assert_eq!(tail_n_chars(&twenty_character_str, 10).len(), 10);
+    assert_eq!(tail_n_chars(&twenty_character_str, 21).len(), 20);
 
     let sample = "lorem ipsum egg";
     assert_eq!(tail_n_chars(sample, 3), "egg");

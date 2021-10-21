@@ -24,10 +24,12 @@ fn resource(name: &str) -> String {
 fn invalid_files_err() {
     let res = parse("asdhf;asdjhfasdf", None, OverrideResultMappings::None);
     if let Err(msg) = res {
-        assert_eq!(msg,
-                   "Couldn't open 'asdhf;asdjhfasdf' for reading: No such file or directory (os \
+        assert_eq!(
+            msg,
+            "Couldn't open 'asdhf;asdjhfasdf' for reading: No such file or directory (os \
                     error 2)"
-                       .to_string())
+                .to_string()
+        )
     } else {
         panic!("the file doesn't exist - the test should have failed");
     }
@@ -35,15 +37,21 @@ fn invalid_files_err() {
 
 #[test]
 fn invalid_json_err() {
-    let res = parse(&resource("invalid_json.factfile"),
-                    None,
-                    OverrideResultMappings::None);
+    let res = parse(
+        &resource("invalid_json.factfile"),
+        None,
+        OverrideResultMappings::None,
+    );
     if let Err(msg) = res {
-        assert_eq!(msg,
-                   format!("'{}' is not a valid factotum factfile: invalid JSON - invalid syntax \
+        assert_eq!(
+            msg,
+            format!(
+                "'{}' is not a valid factotum factfile: invalid JSON - invalid syntax \
                             at line 1, column 3",
-                           resource("invalid_json.factfile"))
-                       .to_string())
+                resource("invalid_json.factfile")
+            )
+            .to_string()
+        )
     } else {
         panic!("the file is invalid json - the test should have failed");
     }
@@ -54,11 +62,15 @@ fn invalid_against_schema_err() {
     let invalid = resource("example_invalid_no_name.factfile");
     let res = parse(&invalid, None, OverrideResultMappings::None);
     if let Err(msg) = res {
-        assert_eq!(msg,
-                   format!("'{}' is not a valid factotum factfile: '/data/name' - This property \
+        assert_eq!(
+            msg,
+            format!(
+                "'{}' is not a valid factotum factfile: '/data/name' - This property \
                             is required",
-                           invalid)
-                       .to_string())
+                invalid
+            )
+            .to_string()
+        )
     } else {
         panic!("the file is invalid json - the test should have failed");
     }
@@ -69,12 +81,16 @@ fn invalid_against_schema_wrong_type() {
     let invalid = resource("example_wrong_type.factfile");
     let res = parse(&invalid, None, OverrideResultMappings::None);
     if let Err(msg) = res {
-        assert_eq!(msg,
-                   format!("'{}' is not a valid factotum factfile: \
+        assert_eq!(
+            msg,
+            format!(
+                "'{}' is not a valid factotum factfile: \
                             '/data/tasks/0/onResult/terminateJobWithSuccess/0' - Type of the \
                             value is wrong (The value must be integer)",
-                           invalid)
-                       .to_string())
+                invalid
+            )
+            .to_string()
+        )
     } else {
         panic!("the file is invalid json - the test should have failed");
     }
@@ -85,10 +101,14 @@ fn invalid_ambiguous_on_result() {
     let invalid = resource("example_invalid_terminate_continue_same.factfile");
     let res = parse(&invalid, None, OverrideResultMappings::None);
     if let Err(msg) = res {
-        assert_eq!(msg,
-                   format!("'{}' is not a valid factotum factfile: the task 'ambi' has \
+        assert_eq!(
+            msg,
+            format!(
+                "'{}' is not a valid factotum factfile: the task 'ambi' has \
                             conflicting actions.",
-                           invalid))
+                invalid
+            )
+        )
     } else {
         panic!("conflicting actions in onResult should fail");
     }
@@ -99,10 +119,14 @@ fn invalid_must_continue() {
     let invalid = resource("example_invalid_no_continue.factfile");
     let res = parse(&invalid, None, OverrideResultMappings::None);
     if let Err(msg) = res {
-        assert_eq!(msg,
-                   format!("'{}' is not a valid factotum factfile: the task 'continue' has no \
+        assert_eq!(
+            msg,
+            format!(
+                "'{}' is not a valid factotum factfile: the task 'continue' has no \
                             way to continue successfully.",
-                           invalid))
+                invalid
+            )
+        )
     } else {
         panic!("having no values in continue should fail");
     }
@@ -130,7 +154,7 @@ fn valid_generates_factfile() {
         assert_eq!(task_three.depends_on, vec!["StorageLoader"]);
 
         let expected_raw = include_str!("../../../tests/resources/example_ok.factfile");
-        // convert it into "compact" form 
+        // convert it into "compact" form
         let inflated: SelfDescribingJson = json::decode(expected_raw).unwrap();
         let compacted: String = json::encode(&inflated).unwrap();
         print!("raw:\n\n{}", &factfile.raw);
@@ -174,5 +198,4 @@ fn overrides_set_noop_values() {
     } else {
         panic!("valid factfile example_ok.factfile should have parsed but didn't");
     }
-
 }

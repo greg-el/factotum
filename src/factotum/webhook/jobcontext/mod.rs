@@ -19,9 +19,9 @@ use chrono::DateTime;
 use chrono::UTC;
 use crypto::digest::Digest;
 use crypto::sha2::Sha256;
-use uuid::Uuid;
 use rustc_serialize::base64::{ToBase64, MIME};
 use std::collections::HashMap;
+use uuid::Uuid;
 
 #[derive(Clone, Debug)]
 pub struct JobContext {
@@ -31,18 +31,22 @@ pub struct JobContext {
     pub factfile: String,
     pub factotum_version: String,
     pub start_time: DateTime<UTC>,
-    pub tags: HashMap<String,String>,
+    pub tags: HashMap<String, String>,
 }
 
 impl JobContext {
-    pub fn new<S: Into<String>>(job_name: S, factfile: &str, tags:Option<HashMap<String,String>>) -> Self {
+    pub fn new<S: Into<String>>(
+        job_name: S,
+        factfile: &str,
+        tags: Option<HashMap<String, String>>,
+    ) -> Self {
         let ff = factfile;
-        
+
         let mut job_digest = Sha256::new();
         job_digest.input_str(&ff);
 
         if let Some(ref tags_map) = tags {
-            let mut sorted_keys:Vec<_> = tags_map.keys().collect();
+            let mut sorted_keys: Vec<_> = tags_map.keys().collect();
             sorted_keys.sort();
             for key in sorted_keys {
                 job_digest.input_str(key);

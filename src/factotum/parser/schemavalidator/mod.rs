@@ -15,10 +15,10 @@
 #[cfg(test)]
 mod tests;
 
+use rustc_serialize::json::{error_str, Json};
 use valico::json_schema;
-use rustc_serialize::json::{Json, error_str};
 
-use rustc_serialize::json::ParserError::{self, SyntaxError, IoError};
+use rustc_serialize::json::ParserError::{self, IoError, SyntaxError};
 
 // there must be a way to do this normally
 fn get_human_readable_parse_error(e: ParserError) -> String {
@@ -26,15 +26,16 @@ fn get_human_readable_parse_error(e: ParserError) -> String {
         SyntaxError(code, line, col) => {
             format!("{} at line {}, column {}", error_str(code), line, col)
         }
-        IoError(msg) => unreachable!("Unexpected IO error: {}", msg), 
+        IoError(msg) => unreachable!("Unexpected IO error: {}", msg),
     }
 }
 
 pub fn validate_schema(json: &str, schema: &str) -> Result<(), String> {
     let mut scope = json_schema::Scope::new();
-    let json_schema = Json::from_str(schema)
-        .map_err(|e| format!("Schema is invalid json: {:?}", e))?;
-    let compiled_schema = scope.compile_and_return(json_schema, false)
+    let json_schema =
+        Json::from_str(schema).map_err(|e| format!("Schema is invalid json: {:?}", e))?;
+    let compiled_schema = scope
+        .compile_and_return(json_schema, false)
         .map_err(|e| format!("Failed to compile json schema: {:?}", e))?;
 
     let json_tree = Json::from_str(json)
@@ -45,16 +46,19 @@ pub fn validate_schema(json: &str, schema: &str) -> Result<(), String> {
     if json_schema_validation.is_valid() == true {
         Ok(())
     } else {
-        let errors_str = json_schema_validation.errors
+        let errors_str = json_schema_validation
+            .errors
             .iter()
             .map(|e| {
-                format!("'{}' - {}{}",
-                        e.get_path(),
-                        e.get_title(),
-                        match e.get_detail() {
-                            Some(str) => format!(" ({})", str),
-                            _ => "".to_string(),
-                        })
+                format!(
+                    "'{}' - {}{}",
+                    e.get_path(),
+                    e.get_title(),
+                    match e.get_detail() {
+                        Some(str) => format!(" ({})", str),
+                        _ => "".to_string(),
+                    }
+                )
             })
             .collect::<Vec<String>>()
             .join("\n");

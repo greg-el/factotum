@@ -12,15 +12,17 @@
 // governing permissions and limitations there under.
 //
 
-use factotum::factfile::Task;
 use daggy::*;
+use factotum::factfile::Task;
 
 #[cfg(test)]
 mod tests;
 
-pub fn get_tasks_in_order<'a>(dag: &'a Dag<Task, ()>,
-                              start: &Vec<NodeIndex>,
-                              tree: &mut Vec<Vec<&'a Task>>) {
+pub fn get_tasks_in_order<'a>(
+    dag: &'a Dag<Task, ()>,
+    start: &Vec<NodeIndex>,
+    tree: &mut Vec<Vec<&'a Task>>,
+) {
     let mut row: Vec<&Task> = vec![];
 
     for idx in start {
@@ -49,10 +51,11 @@ pub fn get_tasks_in_order<'a>(dag: &'a Dag<Task, ()>,
     }
 }
 
-pub fn find_task_recursive<'a>(dag: &'a Dag<Task, ()>,
-                               name: &str,
-                               start: NodeIndex)
-                               -> Option<(NodeIndex, &'a Task)> {
+pub fn find_task_recursive<'a>(
+    dag: &'a Dag<Task, ()>,
+    name: &str,
+    start: NodeIndex,
+) -> Option<(NodeIndex, &'a Task)> {
     if dag.children(start).iter(&dag).count() != 0 {
         if let Some((_, node)) = dag.children(start).find(&dag, |g, _, n| g[n].name == name) {
             return Some((node, &dag[node]));
@@ -70,13 +73,11 @@ pub fn find_task_recursive<'a>(dag: &'a Dag<Task, ()>,
 }
 
 pub fn is_proper_sub_tree(dag: &Dag<Task, ()>, start: NodeIndex) -> bool {
-
     let mut allowed_deps = vec![];
     allowed_deps.push(&dag[start]);
     let mut process_children = vec![start];
 
     while process_children.len() != 0 {
-
         let mut next_to_process = vec![];
 
         for child_index in process_children.iter() {
@@ -89,7 +90,10 @@ pub fn is_proper_sub_tree(dag: &Dag<Task, ()>, start: NodeIndex) -> bool {
         for child_index in process_children.iter() {
             if *child_index != start {
                 for (_, parent_node) in dag.parents(*child_index).iter(&dag) {
-                    if !allowed_deps.iter().any(|node| node.name == dag[parent_node].name) {
+                    if !allowed_deps
+                        .iter()
+                        .any(|node| node.name == dag[parent_node].name)
+                    {
                         return false;
                     }
                 }

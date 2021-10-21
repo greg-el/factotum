@@ -15,9 +15,9 @@
 use super::*;
 
 use chrono::UTC;
-use rustc_serialize::base64::{ToBase64, MIME};
 use crypto::digest::Digest;
 use crypto::sha2::Sha256;
+use rustc_serialize::base64::{ToBase64, MIME};
 use std::collections::HashMap;
 
 #[test]
@@ -29,8 +29,10 @@ fn new_sets_name() {
 #[test]
 fn new_sets_version_and_date() {
     let context = JobContext::new("hello", "some_json", None);
-    assert_eq!(context.factotum_version,
-               env!("CARGO_PKG_VERSION").to_string());
+    assert_eq!(
+        context.factotum_version,
+        env!("CARGO_PKG_VERSION").to_string()
+    );
     assert_eq!(context.start_time.date(), UTC::now().date());
 }
 
@@ -97,7 +99,7 @@ fn tags_are_used_in_job_hash() {
     let mut digest = Sha256::new();
     digest.input_str(factfile_sim);
 
-    digest.input_str("a");  // NB the keys are sorted so the output is reproducible! 
+    digest.input_str("a"); // NB the keys are sorted so the output is reproducible!
     digest.input_str("b");
     digest.input_str("hello");
     digest.input_str("world");

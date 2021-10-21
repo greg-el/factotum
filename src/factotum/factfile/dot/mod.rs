@@ -34,11 +34,13 @@ pub fn generate_graphviz_dot(factfile: &Factfile, start: Option<String>) -> Stri
 
     let title = format!("digraph \"{}\" {{", factfile.name);
 
-    let task_names = topologically_sorted_tasks.iter()
+    let task_names = topologically_sorted_tasks
+        .iter()
         .map(|t| format!("    \"{}\"\n", t.name))
         .collect::<String>();
 
-    let task_connections = topologically_sorted_tasks.iter()
+    let task_connections = topologically_sorted_tasks
+        .iter()
         .map(|t| {
             t.depends_on
                 .iter()
@@ -46,7 +48,6 @@ pub fn generate_graphviz_dot(factfile: &Factfile, start: Option<String>) -> Stri
                 .collect::<String>()
         })
         .collect::<String>();
-
 
     format!("{}\n{}{}{}", title, task_names, task_connections, "}")
 }

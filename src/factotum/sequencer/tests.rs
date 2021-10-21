@@ -12,8 +12,8 @@
 // governing permissions and limitations there under.
 //
 
-use factotum::factfile::*;
 use daggy::*;
+use factotum::factfile::*;
 use factotum::tests::*;
 
 #[test]

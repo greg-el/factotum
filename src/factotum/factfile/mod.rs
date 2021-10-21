@@ -12,13 +12,12 @@
 // governing permissions and limitations there under.
 //
 
+mod dot;
 #[cfg(test)]
 mod tests;
-mod dot;
 
 use daggy::*;
 use factotum::sequencer;
-
 
 pub struct Factfile {
     pub name: String,
@@ -27,7 +26,7 @@ pub struct Factfile {
     root: NodeIndex,
 }
 
-#[derive(Clone,Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Task {
     pub name: String,
     pub depends_on: Vec<String>,
@@ -37,7 +36,7 @@ pub struct Task {
     pub on_result: OnResult,
 }
 
-#[derive(Clone,Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct OnResult {
     pub terminate_job: Vec<i32>,
     pub continue_job: Vec<i32>,
@@ -70,17 +69,21 @@ impl Factfile {
         dot::generate_graphviz_dot(&self, start_task)
     }
 
-    fn get_tasks_in_order_from_node_index<'a>(&'a self,
-                                              start_node_index: NodeIndex)
-                                              -> Vec<Vec<&'a Task>> {
+    fn get_tasks_in_order_from_node_index<'a>(
+        &'a self,
+        start_node_index: NodeIndex,
+    ) -> Vec<Vec<&'a Task>> {
         let mut tree: Vec<Vec<&Task>> = vec![];
-        sequencer::get_tasks_in_order(&self.dag,
-                                      &self.dag
-                                          .children(start_node_index)
-                                          .iter(&self.dag)
-                                          .map(|(_, node_idx)| node_idx)
-                                          .collect(),
-                                      &mut tree);
+        sequencer::get_tasks_in_order(
+            &self.dag,
+            &self
+                .dag
+                .children(start_node_index)
+                .iter(&self.dag)
+                .map(|(_, node_idx)| node_idx)
+                .collect(),
+            &mut tree,
+        );
         tree
     }
 
@@ -114,23 +117,27 @@ impl Factfile {
     // this is used in tests
     #[cfg(test)]
     pub fn add_task_obj(&mut self, task: &Task) {
-        self.add_task(&task.name,
-                      &task.depends_on.iter().map(AsRef::as_ref).collect(),
-                      &task.executor,
-                      &task.command,
-                      &task.arguments.iter().map(AsRef::as_ref).collect(),
-                      &task.on_result.terminate_job,
-                      &task.on_result.continue_job) // TODO should this function really be the main one? or even the only one, its nicer to pass a struct as it has named params
+        self.add_task(
+            &task.name,
+            &task.depends_on.iter().map(AsRef::as_ref).collect(),
+            &task.executor,
+            &task.command,
+            &task.arguments.iter().map(AsRef::as_ref).collect(),
+            &task.on_result.terminate_job,
+            &task.on_result.continue_job,
+        ) // TODO should this function really be the main one? or even the only one, its nicer to pass a struct as it has named params
     }
 
-    pub fn add_task(&mut self,
-                    name: &str,
-                    depends_on: &Vec<&str>,
-                    executor: &str,
-                    command: &str,
-                    args: &Vec<&str>,
-                    terminate_job_on: &Vec<i32>,
-                    continue_job_on: &Vec<i32>) {
+    pub fn add_task(
+        &mut self,
+        name: &str,
+        depends_on: &Vec<&str>,
+        executor: &str,
+        command: &str,
+        args: &Vec<&str>,
+        terminate_job_on: &Vec<i32>,
+        continue_job_on: &Vec<i32>,
+    ) {
         // TODO ensure all fields are validated, Result is returned rather than panic (and get tests in shape for this validation)
 
         if let Some((_, task)) = self.find_task_by_name(name) {
@@ -150,9 +157,11 @@ impl Factfile {
                     parents.push(idx);
                     deps.push(dependency.to_string());
                 } else {
-                    panic!("A task must have it's dependencies already defined - couldn't find \
+                    panic!(
+                        "A task must have it's dependencies already defined - couldn't find \
                             definition of {}",
-                           dependency);
+                        dependency
+                    );
                 }
             }
 
@@ -170,9 +179,10 @@ impl Factfile {
 
             for parent in parents {
                 if let Err(_) = self.dag.add_edge(parent, node, ()) {
-                    panic!("Couldn't add edge between {} and {}!",
-                           self.dag[parent].name,
-                           self.dag[node].name);
+                    panic!(
+                        "Couldn't add edge between {} and {}!",
+                        self.dag[parent].name, self.dag[node].name
+                    );
                 }
             }
         } else {

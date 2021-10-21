@@ -17,15 +17,14 @@ mod jobupdate;
 #[cfg(test)]
 mod tests;
 
-
+use factotum::executor::{ExecutionState, ExecutionUpdate};
+use factotum::webhook::jobcontext::JobContext;
+use rand;
+use std::collections::HashMap;
+use std::sync::mpsc::Receiver;
 use std::thread;
 use std::thread::JoinHandle;
-use std::sync::mpsc::Receiver;
-use factotum::executor::{ExecutionState, ExecutionUpdate};
 use std::time::Duration;
-use rand;
-use factotum::webhook::jobcontext::JobContext;
-use std::collections::HashMap;
 
 const MAX_RETRIES: usize = 3;
 
@@ -35,7 +34,7 @@ pub fn backoff_rand_1_minute() -> Duration {
     Duration::from_millis(random_ms % max_duration_millis)
 }
 
-#[derive(Debug,Clone,PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Attempt {
     code: Option<u32>,
     message: String,
@@ -43,10 +42,11 @@ pub struct Attempt {
 }
 
 impl Attempt {
-    pub fn new<S: Into<String>>(code: Option<u32>,
-                                message: S,
-                                execution_update: ExecutionUpdate)
-                                -> Self {
+    pub fn new<S: Into<String>>(
+        code: Option<u32>,
+        message: S,
+        execution_update: ExecutionUpdate,
+    ) -> Self {
         Attempt {
             code: code,
             message: message.into(),
@@ -57,7 +57,7 @@ impl Attempt {
 
 pub type WebhookAttemptResult = Result<Attempt, Attempt>;
 
-#[derive(Debug,Clone,PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct WebhookResult {
     pub events_received: u32,
     pub failed_count: u32,
@@ -66,11 +66,12 @@ pub struct WebhookResult {
 }
 
 impl WebhookResult {
-    pub fn new(events_received: u32,
-               fail_count: u32,
-               success_count: u32,
-               results: Vec<WebhookAttemptResult>)
-               -> Self {
+    pub fn new(
+        events_received: u32,
+        fail_count: u32,
+        success_count: u32,
+        results: Vec<WebhookAttemptResult>,
+    ) -> Self {
         WebhookResult {
             events_received: events_received,
             failed_count: fail_count,
@@ -90,25 +91,24 @@ pub struct Webhook {
 
 impl Webhook {
     pub fn http_post(url: &str, data: &str) -> Result<u32, (u32, String)> {
-        use hyper::Client;
+        use hyper::header::{ContentType, Headers};
+        use hyper::mime::{Attr, Mime, SubLevel, TopLevel, Value};
         use hyper::net::HttpsConnector;
-        use hyper_native_tls::NativeTlsClient;
-        use hyper::header::{Headers, ContentType};
-        use hyper::mime::{Mime, TopLevel, SubLevel, Attr, Value};
         use hyper::status;
+        use hyper::Client;
+        use hyper_native_tls::NativeTlsClient;
 
         let ssl = NativeTlsClient::new().unwrap();
         let connector = HttpsConnector::new(ssl);
         let client = Client::with_connector(connector);
         let mut headers = Headers::new();
-        headers.set(ContentType(Mime(TopLevel::Application,
-                                     SubLevel::Json,
-                                     vec![(Attr::Charset, Value::Utf8)])));
+        headers.set(ContentType(Mime(
+            TopLevel::Application,
+            SubLevel::Json,
+            vec![(Attr::Charset, Value::Utf8)],
+        )));
 
-        let res = client.post(url)
-            .headers(headers)
-            .body(data)
-            .send();
+        let res = client.post(url).headers(headers).body(data).send();
         match res {
             Ok(g) => {
                 if g.status == status::StatusCode::Ok {
@@ -121,7 +121,13 @@ impl Webhook {
         }
     }
 
-    pub fn new<S: Into<String>>(factfile_job_name: S, factfile_json: S, endpoint: S, job_tags:Option<HashMap<String,String>>, max_stdouterr_size:Option<usize>) -> Self {
+    pub fn new<S: Into<String>>(
+        factfile_job_name: S,
+        factfile_json: S,
+        endpoint: S,
+        job_tags: Option<HashMap<String, String>>,
+        max_stdouterr_size: Option<usize>,
+    ) -> Self {
         let ff_name: String = factfile_job_name.into();
         let ff_json: String = factfile_json.into();
         let jc = jobcontext::JobContext::new(ff_name.clone(), &ff_json, job_tags);
@@ -141,21 +147,21 @@ impl Webhook {
         }
     }
 
-    pub fn connect_webhook<F, G>(&mut self,
-                                 updates_channel: Receiver<ExecutionUpdate>,
-                                 emitter_func: F,
-                                 backoff_retry_period: G)
-                                 -> JoinHandle<WebhookResult>
-        where F: Fn(&str, &str) -> Result<u32, (u32, String)> + Send + Sync + 'static + Copy,
-              G: Fn() -> Duration + Send + Sync + 'static
+    pub fn connect_webhook<F, G>(
+        &mut self,
+        updates_channel: Receiver<ExecutionUpdate>,
+        emitter_func: F,
+        backoff_retry_period: G,
+    ) -> JoinHandle<WebhookResult>
+    where
+        F: Fn(&str, &str) -> Result<u32, (u32, String)> + Send + Sync + 'static + Copy,
+        G: Fn() -> Duration + Send + Sync + 'static,
     {
-
         let endpoint = self.endpoint.clone();
         let job_context = self.job_context.clone();
         let max_stdouterr_size = self.max_stdouterr_size.clone();
 
         thread::spawn(move || {
-
             let mut attempts = vec![];
             let mut fail_count = 0;
             let mut success_count = 0;
@@ -163,7 +169,6 @@ impl Webhook {
             let mut events_recv = 0;
 
             while done == false {
-
                 let message: ExecutionUpdate = updates_channel.recv().unwrap();
                 events_recv += 1;
 
@@ -171,7 +176,8 @@ impl Webhook {
                     done = true;
                 }
 
-                let job_update = jobupdate::JobUpdate::new(&job_context, &message, &max_stdouterr_size);
+                let job_update =
+                    jobupdate::JobUpdate::new(&job_context, &message, &max_stdouterr_size);
                 let json_post_data = job_update.as_self_desc_json();
 
                 for _ in 0..MAX_RETRIES {
@@ -185,9 +191,10 @@ impl Webhook {
                         }
                         Err((code, r)) => {
                             fail_count = fail_count + 1;
-                            warn!("Failed to send webhook update to '{}': {}",
-                                  &endpoint,
-                                  &json_post_data);
+                            warn!(
+                                "Failed to send webhook update to '{}': {}",
+                                &endpoint, &json_post_data
+                            );
                             warn!("Reason: {}, {}", code, r);
                             Err(Attempt::new(Some(code), r, message.clone()))
                         }

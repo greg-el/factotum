@@ -15,7 +15,7 @@
 #[cfg(test)]
 mod tests;
 use std::process::Command;
-use std::time::{Instant, Duration};
+use std::time::{Duration, Instant};
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct RunResult {
@@ -27,7 +27,6 @@ pub struct RunResult {
 }
 
 pub fn simulation_text(name: &str, command: &Command) -> String {
-
     use std::cmp;
     let command_text = format!("{:?}", command);
 
@@ -35,24 +34,54 @@ pub fn simulation_text(name: &str, command: &Command) -> String {
     let col_command_title = "COMMAND";
     let col_padding = 2;
     let task_col_width = cmp::max(name.len() + col_padding, col_task_title.len() + col_padding);
-    let command_col_width = cmp::max(command_text.len() + col_padding,
-                                     col_command_title.len() + col_padding);
+    let command_col_width = cmp::max(
+        command_text.len() + col_padding,
+        col_command_title.len() + col_padding,
+    );
 
-    let lines = vec![ 
-                      format!("/{fill:->taskwidth$}|{fill:->cmdwidth$}\\", fill="-", taskwidth=task_col_width, cmdwidth=command_col_width),
-                      format!("| {:taskwidth$} | {:cmdwidth$} |", "TASK", "COMMAND", taskwidth=task_col_width-col_padding, cmdwidth=command_col_width-col_padding),
-                      format!("|{fill:-<taskwidth$}|{fill:-<cmdwidth$}|", fill="-", taskwidth=task_col_width, cmdwidth=command_col_width),
-                      format!("| {:taskwidth$} | {:-<cmdwidth$} |", name, command_text, taskwidth=task_col_width-col_padding, cmdwidth=command_col_width-col_padding),
-                      format!("\\{fill:-<taskwidth$}|{fill:-<cmdwidth$}/\n", fill="-", taskwidth=task_col_width, cmdwidth=command_col_width),
-                    ];
+    let lines = vec![
+        format!(
+            "/{fill:->taskwidth$}|{fill:->cmdwidth$}\\",
+            fill = "-",
+            taskwidth = task_col_width,
+            cmdwidth = command_col_width
+        ),
+        format!(
+            "| {:taskwidth$} | {:cmdwidth$} |",
+            "TASK",
+            "COMMAND",
+            taskwidth = task_col_width - col_padding,
+            cmdwidth = command_col_width - col_padding
+        ),
+        format!(
+            "|{fill:-<taskwidth$}|{fill:-<cmdwidth$}|",
+            fill = "-",
+            taskwidth = task_col_width,
+            cmdwidth = command_col_width
+        ),
+        format!(
+            "| {:taskwidth$} | {:-<cmdwidth$} |",
+            name,
+            command_text,
+            taskwidth = task_col_width - col_padding,
+            cmdwidth = command_col_width - col_padding
+        ),
+        format!(
+            "\\{fill:-<taskwidth$}|{fill:-<cmdwidth$}/\n",
+            fill = "-",
+            taskwidth = task_col_width,
+            cmdwidth = command_col_width
+        ),
+    ];
 
     lines.join("\n")
 }
 
 pub fn execute_simulation(name: &str, command: &mut Command) -> RunResult {
-    info!("Simulating execution for {} with command {:?}",
-          name,
-          command);
+    info!(
+        "Simulating execution for {} with command {:?}",
+        name, command
+    );
     RunResult {
         duration: Duration::from_secs(0),
         task_execution_error: None,
@@ -95,14 +124,12 @@ pub fn execute_os(name: &str, command: &mut Command) -> RunResult {
                 return_code: return_code,
             }
         }
-        Err(message) => {
-            RunResult {
-                duration: Duration::from_secs(0),
-                task_execution_error: Some(format!("Error executing process - {}", message)),
-                stdout: None,
-                stderr: None,
-                return_code: -1,
-            }
-        }
+        Err(message) => RunResult {
+            duration: Duration::from_secs(0),
+            task_execution_error: Some(format!("Error executing process - {}", message)),
+            stdout: None,
+            stderr: None,
+            return_code: -1,
+        },
     }
 }
