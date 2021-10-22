@@ -17,9 +17,8 @@ mod tests;
 
 use chrono::DateTime;
 use chrono::UTC;
-use crypto::digest::Digest;
-use crypto::sha2::Sha256;
 use rustc_serialize::base64::{ToBase64, MIME};
+use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use uuid::Uuid;
 
@@ -43,22 +42,22 @@ impl JobContext {
         let ff = factfile;
 
         let mut job_digest = Sha256::new();
-        job_digest.input_str(&ff);
+        job_digest.update(&ff);
 
         if let Some(ref tags_map) = tags {
             let mut sorted_keys: Vec<_> = tags_map.keys().collect();
             sorted_keys.sort();
             for key in sorted_keys {
-                job_digest.input_str(key);
-                job_digest.input_str(&tags_map[key]);
+                job_digest.update(key);
+                job_digest.update(&tags_map[key]);
             }
         }
 
-        let job_ref = job_digest.result_str();
+        let job_ref = job_digest.finalize();
 
         let mut run_digest = Sha256::new();
-        run_digest.input_str(&format!("{}", Uuid::new_v4()));
-        let run_ref = run_digest.result_str();
+        run_digest.update(&format!("{}", Uuid::new_v4()));
+        let run_ref = run_digest.finalize();
 
         let mut config = MIME;
         config.line_length = None;
@@ -72,8 +71,8 @@ impl JobContext {
 
         JobContext {
             job_name: job_name.into(),
-            job_reference: job_ref,
-            run_reference: run_ref,
+            job_reference: format!("{:x}", job_ref),
+            run_reference: format!("{:x}", run_ref),
             factfile: b64_ff,
             factotum_version: env!("CARGO_PKG_VERSION").to_string(),
             start_time: UTC::now(),

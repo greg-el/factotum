@@ -28,7 +28,7 @@ use factotum::executor::{
 };
 use rustc_serialize;
 use rustc_serialize::json::{self, Json, ToJson};
-use rustc_serialize::Encodable;
+use rustc_serialize::{Decodable, Encodable};
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 

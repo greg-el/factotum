@@ -15,9 +15,8 @@
 use super::*;
 
 use chrono::UTC;
-use crypto::digest::Digest;
-use crypto::sha2::Sha256;
 use rustc_serialize::base64::{ToBase64, MIME};
+use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 
 #[test]
@@ -41,12 +40,12 @@ fn new_sets_job_ref_to_hash_of_factfile() {
     let job_name = "hello";
     let factfile_sim = "{Blabla}";
     let mut digest = Sha256::new();
-    digest.input_str(factfile_sim);
-    let expected = digest.result_str();
+    digest.update(factfile_sim);
+    let expected = digest.finalize();
 
     let context = JobContext::new(job_name, factfile_sim, None);
 
-    assert_eq!(context.job_reference, expected);
+    assert_eq!(context.job_reference, format!("{:x}", expected));
 }
 
 #[test]
@@ -97,18 +96,17 @@ fn tags_are_used_in_job_hash() {
     tags.insert("a".into(), "b".into());
 
     let mut digest = Sha256::new();
-    digest.input_str(factfile_sim);
+    digest.update(factfile_sim);
 
-    digest.input_str("a"); // NB the keys are sorted so the output is reproducible!
-    digest.input_str("b");
-    digest.input_str("hello");
-    digest.input_str("world");
-    digest.input_str("z");
-    digest.input_str("sdfsdfs");
+    digest.update("a"); // NB the keys are sorted so the output is reproducible!
+    digest.update("b");
+    digest.update("hello");
+    digest.update("world");
+    digest.update("z");
+    digest.update("sdfsdfs");
 
-    let expected = digest.result_str();
+    let expected = digest.finalize();
 
     let context = JobContext::new(job_name, factfile_sim, Some(tags.clone()));
-
-    assert_eq!(context.job_reference, expected);
+    assert_eq!(context.job_reference, format!("{:x}", expected));
 }

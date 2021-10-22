@@ -16,7 +16,6 @@
 extern crate log;
 extern crate chrono;
 extern crate colored;
-extern crate crypto;
 extern crate daggy;
 extern crate dns_lookup;
 extern crate docopt;
@@ -27,6 +26,7 @@ extern crate libc;
 extern crate log4rs;
 extern crate rand;
 extern crate rustc_serialize;
+extern crate sha2;
 extern crate uuid;
 extern crate valico;
 
